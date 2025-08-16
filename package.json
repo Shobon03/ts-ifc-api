@@ -5,19 +5,23 @@
   "private": true,
   "workspaces": [
     "backend",
-    "frontend"
+    "frontend",
+    "documentation"
   ],
   "scripts": {
     "dev": "npm run dev --workspace=backend",
     "dev:backend": "npm run dev --workspace=backend",
     "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:documentation": "npm run dev --workspace=documentation",
     "build": "npm run build --workspaces --if-present",
     "build:backend": "npm run build --workspace=backend",
     "build:frontend": "npm run build --workspace=frontend",
+    "build:documentation": "npm run build --workspace=documentation",
     "start": "npm run start --workspace=backend",
     "test": "npm run test --workspaces --if-present",
     "test:backend": "npm run test --workspace=backend",
-    "test:frontend": "npm run test --workspace=frontend"
+    "test:frontend": "npm run test --workspace=frontend",
+    "test:documentation": "npm run test --workspace=documentation"
   },
   "keywords": [
     "bim",

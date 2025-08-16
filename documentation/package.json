@@ -1,13 +1,39 @@
 {
-  "name": "with-fumadocs",
-  "version": "0.0.0",
+  "name": "@ts-ifc-api/docs",
+  "version": "1.0.0",
+  "description": "Documentation for the ts-ifc-api project",
   "private": true,
   "scripts": {
     "build": "next build",
     "dev": "next dev",
     "start": "next start",
-    "postinstall": "fumadocs-mdx"
+    "postinstall": "fumadocs-mdx",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --fix .",
+    "format": "biome format .",
+    "format:write": "biome format --write .",
+    "check": "biome check .",
+    "check:fix": "biome check --fix ."
   },
+  "keywords": [
+    "docs",
+    "documentation",
+    "bim",
+    "ifc",
+    "interoperability",
+    "typescript",
+    "api"
+  ],
+  "author": {
+    "name": "Matheus Piovezan Teixeira",
+    "email": "66133043+Shobon03@users.noreply.github.com",
+    "url": "https://github.com/Shobon03/ts-ifc-api"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shobon03/ts-ifc-api"
+  },
+  "license": "GPL-3.0-or-later",
   "dependencies": {
     "codehike": "^1.0.4",
     "fumadocs-core": "14.1.1",

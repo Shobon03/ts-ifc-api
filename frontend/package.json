@@ -1,7 +1,7 @@
 {
   "name": "@ts-ifc-api/frontend",
   "version": "1.0.0",
-  "description": "Frontend application for BIM interoperability",
+  "description": "Frontend application for BIM interoperability api",
   "private": true,
   "type": "module",
   "scripts": {
@@ -60,6 +60,10 @@
   "author": {
     "name": "Matheus Piovezan Teixeira",
     "email": "66133043+Shobon03@users.noreply.github.com",
+    "url": "https://github.com/Shobon03/ts-ifc-api"
+  },
+  "repository": {
+    "type": "git",
     "url": "https://github.com/Shobon03/ts-ifc-api"
   },
   "license": "GPL-3.0-or-later"
