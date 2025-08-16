@@ -15,23 +15,13 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { afterEach, beforeEach, vi } from 'vitest';
-
-// Mock console methods to reduce noise in test output
-beforeEach(() => {
-  // Mock console.log to reduce noise in test output
-  vi.spyOn(console, 'log').mockImplementation(() => {});
-  vi.spyOn(console, 'info').mockImplementation(() => {});
-  vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-  // Keep console.error for important error messages in tests
-  // vi.spyOn(console, 'error').mockImplementation(() => {});
-});
-
-afterEach(() => {
-  // Restore all mocks after each test
-  vi.restoreAllMocks();
-
-  // Clear any timers that might be running
-  vi.clearAllTimers();
-});
+/**
+ * Utility to validate IFC files.
+ * This function checks if the provided IFC string is valid.
+ * It currently returns true for all strings, but can be extended to include actual validation logic.
+ * @param {string} ifcString The IFC string to validate.
+ * @returns {boolean} Returns true if the IFC string is valid, false otherwise.
+ */
+export function validateIfc(ifcString: string): boolean {
+  return false;
+}

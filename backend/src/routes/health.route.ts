@@ -1,4 +1,3 @@
-"use strict";
 /*
  * Copyright (C) 2025 Matheus Piovezan Teixeira
  *
@@ -15,15 +14,30 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-const vitest_1 = require("vitest");
-(0, vitest_1.beforeEach)(() => {
-    // TODO...
-});
-(0, vitest_1.afterEach)(() => {
-    // TODO...
-});
-// Add tests for specific functions
-// TODO...
-// Add tests for routes 
-// TODO...
+
+import type { FastifyInstance } from 'fastify';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import z from 'zod';
+
+export async function healthRoute(instance: FastifyInstance) {
+  const app = instance.withTypeProvider<ZodTypeProvider>();
+
+  app.route({
+    method: 'get',
+    url: '/health',
+    schema: {
+      response: {
+        200: z.object({
+          status: z.string(),
+          timestamp: z.string(),
+        }),
+      },
+    },
+    handler: async (_, reply) => {
+      return reply.status(200).send({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+      });
+    },
+  });
+}

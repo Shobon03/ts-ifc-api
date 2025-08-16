@@ -15,23 +15,12 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { afterEach, beforeEach, vi } from 'vitest';
-
-// Mock console methods to reduce noise in test output
-beforeEach(() => {
-  // Mock console.log to reduce noise in test output
-  vi.spyOn(console, 'log').mockImplementation(() => {});
-  vi.spyOn(console, 'info').mockImplementation(() => {});
-  vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-  // Keep console.error for important error messages in tests
-  // vi.spyOn(console, 'error').mockImplementation(() => {});
-});
-
-afterEach(() => {
-  // Restore all mocks after each test
-  vi.restoreAllMocks();
-
-  // Clear any timers that might be running
-  vi.clearAllTimers();
-});
+/**
+ * Enum representing the types of BIM file exports.
+ * This is used to specify the format in which BIM data should be exported.
+ */
+export enum BIMFileExportType {
+  IFC = 'ifc',
+  XML = 'xml',
+  JSON = 'json',
+}

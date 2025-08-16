@@ -1,4 +1,3 @@
-"use strict";
 /*
  * Copyright (C) 2025 Matheus Piovezan Teixeira
  *
@@ -15,17 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-const config_1 = require("vitest/config");
-exports.default = (0, config_1.defineConfig)({
-    test: {
-        globals: true,
-        environment: 'node',
-        setupFiles: ['./src/setupTests.ts'],
-        coverage: {
-            provider: 'v8',
-            include: ['src/**/*.{ts}'],
-            exclude: ['src/**/*.test.{ts}', 'src/setupTests.ts'],
-        },
-    },
-});
+
+/**
+ * Utility to define the maximum file size for uploads.
+ * This is used in the multipart file upload configuration.
+ * The size is set to 100 MB.
+ */
+export const MAX_FILE_SIZE = 100 * 1024 * 1024;

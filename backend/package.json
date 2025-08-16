@@ -1,5 +1,5 @@
 {
-  "name": "ts-ifc-api",
+  "name": "@ts-ifc-api/backend",
   "version": "1.0.0",
   "description": "A BIM interoperability API, written in Typescript",
   "main": "index.js",
@@ -24,7 +24,9 @@
   "license": "GPL-3.0-or-later",
   "devDependencies": {
     "@biomejs/biome": "2.2.0",
+    "@types/forge-apis": "^0.9.7",
     "@types/node": "^24.2.1",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.20.3",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
@@ -33,8 +35,15 @@
     "@fastify/cors": "^11.1.0",
     "@fastify/multipart": "^9.0.3",
     "@fastify/rate-limit": "^10.3.0",
+    "@fastify/swagger": "^9.5.1",
+    "@fastify/websocket": "^11.2.0",
+    "@scalar/fastify-api-reference": "^1.34.2",
+    "axios": "^1.11.0",
+    "dotenv": "^17.2.1",
     "fastify": "^5.5.0",
     "fastify-type-provider-zod": "^5.0.3",
+    "forge-apis": "^0.9.10",
+    "ws": "^8.18.3",
     "zod": "^4.0.17"
   }
 }

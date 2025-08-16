@@ -1,25 +1,35 @@
 /*
  * Copyright (C) 2025 Matheus Piovezan Teixeira
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import fastifyCors from "@fastify/cors";
-import fastifyMultipart from "@fastify/multipart";
-import fastifyRateLimit from "@fastify/rate-limit";
-import fastify, { FastifyInstance } from "fastify";
-import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
+import fastifyCors from '@fastify/cors';
+import fastifyMultipart from '@fastify/multipart';
+import fastifyRateLimit from '@fastify/rate-limit';
+import fastifySwagger from '@fastify/swagger';
+import fastifyWebsocket from '@fastify/websocket';
+import scalarFastifyApiReference from '@scalar/fastify-api-reference';
+import fastify, { type FastifyInstance } from 'fastify';
+import {
+  jsonSchemaTransform,
+  serializerCompiler,
+  validatorCompiler,
+} from 'fastify-type-provider-zod';
+import { healthRoute } from './routes/health.route';
+import { modelRoutes } from './routes/model.route';
+import { MAX_FILE_SIZE } from './utils/max-filesize';
 
 /**
  * Initializes and configures the Fastify application.
@@ -27,7 +37,7 @@ import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod
  */
 export async function initApp(): Promise<FastifyInstance> {
   // Fastify app linitialization
-  const app =  fastify({
+  const app = fastify({
     logger: true,
   });
 
@@ -50,9 +60,73 @@ export async function initApp(): Promise<FastifyInstance> {
   // Max file size is set to 100 MB
   await app.register(fastifyMultipart, {
     limits: {
-      fileSize: 100 * 1024 * 1024, // 100 MB
+      fileSize: MAX_FILE_SIZE, // 100 MB
+    },
+    attachFieldsToBody: true, // Attach file fields to the request body
+  });
+
+  await app.register(fastifySwagger, {
+    openapi: {
+      info: {
+        title: 'Model Generation API',
+        description: 'API for generating models from files',
+        version: '1.0.0',
+      },
+      // components: {
+      //   securitySchemes: {
+      //     bearerAuth: {
+      //       type: 'http',
+      //       scheme: 'bearer',
+      //       bearerFormat: 'JWT',
+      //     },
+      //   },
+      // },
+      servers: [
+        {
+          url: 'http://localhost:3000',
+          description: 'Local development server',
+        },
+      ],
+    },
+    transform: jsonSchemaTransform,
+  });
+
+  await app.register(scalarFastifyApiReference, {
+    routePrefix: '/docs',
+    configuration: {
+      theme: 'kepler',
     },
   });
+
+  // Register error handler
+  app.setErrorHandler((error, request, reply) => {
+    request.log.error(error);
+    reply.status(500).send({
+      error: 'Internal Server Error',
+      message: 'An unexpected error occurred. Please try again later.',
+    });
+  });
+
+  await app.register(fastifyWebsocket);
+
+  app.register(async (app) => {
+    app.get(
+      '/ws',
+      {
+        websocket: true,
+      },
+      (socket, req) => {
+        socket.on('message', (message) => {
+          // Echo the message back to the client
+          socket.send(`Hello from server! You sent: ${message}`);
+        });
+      },
+    );
+  });
+
+  // Register routes
+  await app.register(healthRoute);
+  await app.register(modelRoutes);
 
   return app;
 }
