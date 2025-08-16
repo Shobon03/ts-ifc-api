@@ -1,0 +1,66 @@
+{
+  "name": "@ts-ifc-api/frontend",
+  "version": "1.0.0",
+  "description": "Frontend application for BIM interoperability",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "biome lint ./src/",
+    "lint:fix": "biome lint --fix ./src/",
+    "format": "biome format ./src/",
+    "format:write": "biome format --write ./src/",
+    "check": "biome check ./src/",
+    "check:fix": "biome check --fix ./src/"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.2.1",
+    "@radix-ui/react-label": "^2.1.7",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@tailwindcss/vite": "^4.1.12",
+    "@tanstack/react-query": "^5.85.3",
+    "@tanstack/react-query-devtools": "^5.85.3",
+    "@tanstack/react-router": "^1.131.16",
+    "@tanstack/react-router-devtools": "^1.131.16",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.539.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-hook-form": "^7.62.0",
+    "tailwind-merge": "^3.3.1",
+    "tailwindcss": "^4.1.12",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.0",
+    "@eslint/js": "^9.33.0",
+    "@tanstack/eslint-plugin-query": "^5.83.1",
+    "@tanstack/router-plugin": "^1.131.16",
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react-swc": "^4.0.0",
+    "eslint": "^9.33.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.3.0",
+    "tw-animate-css": "^1.3.6",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.39.1",
+    "vite": "^7.1.2"
+  },
+  "keywords": [
+    "bim",
+    "ifc",
+    "frontend"
+  ],
+  "author": {
+    "name": "Matheus Piovezan Teixeira",
+    "email": "66133043+Shobon03@users.noreply.github.com",
+    "url": "https://github.com/Shobon03/ts-ifc-api"
+  },
+  "license": "GPL-3.0-or-later"
+}

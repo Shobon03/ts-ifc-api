@@ -1,0 +1,40 @@
+{
+  "name": "ts-ifc-api",
+  "version": "1.0.0",
+  "description": "A BIM interoperability API, written in Typescript",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest"
+  },
+  "keywords": [
+    "bim"
+  ],
+  "author": {
+    "name": "Matheus Piovezan Teixeira",
+    "email": "66133043+Shobon03@users.noreply.github.com",
+    "url": "https://github.com/Shobon03/ts-ifc-api"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shobon03/ts-ifc-api"
+  },
+  "license": "GPL-3.0-or-later",
+  "devDependencies": {
+    "@biomejs/biome": "2.2.0",
+    "@types/node": "^24.2.1",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.1.0",
+    "@fastify/multipart": "^9.0.3",
+    "@fastify/rate-limit": "^10.3.0",
+    "fastify": "^5.5.0",
+    "fastify-type-provider-zod": "^5.0.3",
+    "zod": "^4.0.17"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "name": "ts-ifc-api",
+  "version": "1.0.0",
+  "description": "A BIM interoperability API, written in Typescript",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=backend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspaces --if-present",
+    "build:backend": "npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "start": "npm run start --workspace=backend",
+    "test": "npm run test --workspaces --if-present",
+    "test:backend": "npm run test --workspace=backend",
+    "test:frontend": "npm run test --workspace=frontend"
+  },
+  "keywords": [
+    "bim",
+    "ifc",
+    "interoperability",
+    "api",
+    "typescript"
+  ],
+  "author": {
+    "name": "Matheus Piovezan Teixeira",
+    "email": "66133043+Shobon03@users.noreply.github.com",
+    "url": "https://github.com/Shobon03/ts-ifc-api"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shobon03/ts-ifc-api"
+  },
+  "license": "GPL-3.0-or-later",
+  "devDependencies": {
+    "@biomejs/biome": "2.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  }
+}
