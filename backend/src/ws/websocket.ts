@@ -131,8 +131,9 @@ class WebSocketManager {
 
   /**
    * Map to store WebSocket connections.
-   * Each connection is identified by the WebSocket URL and is used to send progress updates.
-   * @type {Map<string, WebSocket>}
+   * Each key is a job ID, and the value is a set of WebSocket connections associated with that job.
+   * This allows multiple clients to subscribe to the same job and receive updates.
+   * @type {Map<string, Set<WebSocket>>}
    * @private
    * @example
    * const socket = new WebSocket('ws://example.com/socket');
@@ -142,7 +143,10 @@ class WebSocketManager {
    * enabling the server to send real-time updates to clients about the status of their conversion jobs
    * and handle disconnections gracefully.
    */
-  private sockets: Map<string, WebSocket> = new Map<string, WebSocket>();
+  private sockets: Map<string, Set<WebSocket>> = new Map<
+    string,
+    Set<WebSocket>
+  >();
 
   /**
    * Handles job errors by updating the job status to ERROR and logging the error.
@@ -158,13 +162,25 @@ class WebSocketManager {
    * @see {@link ConversionJob}
    * @see {@link ConversionStatus}
    */
-  handleJobError(jobId: string, error: string) {
+  handleJobError(jobId: string, error: string): void {
     const job = this.jobs.get(jobId);
     if (!job) return;
 
     job.status = ConversionStatus.ERROR;
     job.error = error;
     job.endTime = new Date();
+
+    this.sendProgress(jobId, {
+      jobId,
+      status: ConversionStatus.ERROR,
+      progress: 0,
+      message: 'Conversion failed',
+      error,
+    });
+
+    setTimeout(() => {
+      this.cleanupJob(jobId);
+    }, 30000);
   }
 
   /**
@@ -227,22 +243,15 @@ class WebSocketManager {
   }
 
   /**
-   * Creates a new conversion job and associates it with a WebSocket connection.
-   * This method initializes a new job, sets its initial status, and stores it in the jobs map.
-   * @param {WebSocket} socket - The WebSocket connection associated with the conversion job.
+   * Creates a job without an initial socket (for REST API initiated jobs)
+   * This method is used when a job is created via REST API and the WebSocket will connect later.
    * @param {string} fileName - The name of the file being converted.
    * @returns {string} The unique identifier of the newly created conversion job.
    * @example
-   * const jobId = this.createJob(socket, 'example.ifc');
+   * const jobId = this.createJobWithoutSocket('example.rvt');
    * console.log(jobId); // Outputs something like 'job-1627891234567-abc123xyz'
-   * @description This method generates a unique job ID, creates a new ConversionJob object,
-   * and stores it in the internal jobs map. It also sets up event listeners on the WebSocket
-   * connection to handle disconnections and errors. The job is initialized with a status of QUEUED
-   * and a progress of 0%. The method returns the job ID for further tracking and management of the conversion job.
-   * @see {@link ConversionJob}
-   * @see {@link ConversionStatus}
    */
-  createJob(socket: WebSocket, fileName: string): string {
+  createJobWithoutSocket(fileName: string): string {
     const jobId = this.generateJobId();
 
     const job: ConversionJob = {
@@ -251,19 +260,19 @@ class WebSocketManager {
       progress: 0,
       fileName,
       startTime: new Date(),
-      socket,
+      socket: null as WebSocket, // Will be set when WebSocket connects
     };
 
     this.jobs.set(jobId, job);
-    this.sockets.set(socket.url, socket);
 
-    socket.on('close', () => {
-      this.handleSocketDisconnect(jobId);
-    });
+    console.log(`Created job ${jobId} without socket for file ${fileName}`);
 
-    socket.on('error', (error) => {
-      console.error(`WebSocket error for job ${jobId}:`, error);
-      this.handleJobError(jobId, error.message);
+    // Send initial status for any future subscribers
+    this.sendProgress(jobId, {
+      jobId,
+      status: ConversionStatus.QUEUED,
+      progress: 0,
+      message: 'Job queued for processing',
     });
 
     return jobId;
@@ -335,7 +344,7 @@ class WebSocketManager {
    */
   cancelJob(jobId: string): boolean {
     const job = this.jobs.get(jobId);
-    if (!job) return;
+    if (!job) return false;
 
     if (
       job.status === ConversionStatus.COMPLETED ||
@@ -418,28 +427,57 @@ class WebSocketManager {
    * @see {@link WebSocket}
    */
   subscribeToJob(jobId: string, socket: WebSocket): void {
+    // Validate socket state
+    if (!socket || socket.readyState !== socket.OPEN) {
+      console.warn(`Cannot subscribe invalid/closed socket to job ${jobId}`);
+      return;
+    }
+
+    // Add to sockets map for multi-client support
     if (!this.sockets.has(jobId)) {
       this.sockets.set(jobId, new Set());
     }
 
-    this.sockets.get(jobId)!.add(socket);
+    const socketSet = this.sockets.get(jobId);
+    socketSet.add(socket);
+
+    // Update the job's primary socket reference if it doesn't have one
+    const job = this.jobs.get(jobId);
+    if (job && !job.socket) {
+      job.socket = socket;
+    }
+
+    console.log(
+      `Socket subscribed to job ${jobId}. Total connections: ${socketSet.size}`,
+    );
 
     // Send current job status if exists
-    const job = this.jobs.get(jobId);
     if (job) {
-      socket.send(
-        JSON.stringify({
-          type: 'status',
-          jobId,
-          status: job.status,
-          progress: job.progress,
-          message: job.error || 'Processing...',
-        }),
-      );
+      const statusMessage = {
+        type: 'status',
+        jobId,
+        status: job.status,
+        progress: job.progress,
+        message: job.error || `Job ${job.status}`,
+        fileName: job.fileName,
+        startTime: job.startTime.toISOString(),
+        endTime: job.endTime?.toISOString(),
+      };
+
+      try {
+        socket.send(JSON.stringify(statusMessage));
+      } catch (error) {
+        console.error(`Failed to send initial status to socket:`, error);
+      }
     }
 
     // Handle socket disconnect
     socket.on('close', () => {
+      this.unsubscribeFromJob(jobId, socket);
+    });
+
+    socket.on('error', (error) => {
+      console.error(`Socket error for job ${jobId}:`, error);
       this.unsubscribeFromJob(jobId, socket);
     });
   }
@@ -490,14 +528,26 @@ class WebSocketManager {
    * @see {@link ConversionProgress}
    */
   sendProgress(jobId: string, progress: ConversionProgress) {
-    const socket = this.sockets.get(jobId);
-    if (!socket || socket.readyState !== socket.OPEN) return;
+    const jobSockets = this.sockets.get(jobId);
+    if (!jobSockets) return;
 
-    try {
-      socket.send(JSON.stringify(progress));
-    } catch (error) {
-      console.error(`Failed to send progress for job ${jobId}:`, error);
-    }
+    const message = JSON.stringify({
+      type: 'progress',
+      ...progress,
+    });
+
+    jobSockets.forEach((socket) => {
+      if (socket.readyState === socket.OPEN) {
+        try {
+          socket.send(message);
+        } catch (error) {
+          console.error(`Failed to send progress for job ${jobId}:`, error);
+          this.unsubscribeFromJob(jobId, socket);
+        }
+      } else {
+        this.unsubscribeFromJob(jobId, socket);
+      }
+    });
   }
 
   /**
@@ -524,35 +574,44 @@ class WebSocketManager {
     status: ConversionStatus,
     message: string,
     details?: any,
-  ) {
+  ): void {
     const job = this.jobs.get(jobId);
-    if (!job) return;
+    if (!job) {
+      console.warn(`Attempted to update non-existent job: ${jobId}`);
+      return;
+    }
 
-    job.progress = progress;
+    // Validate progress range
+    const validProgress = Math.max(0, Math.min(100, progress));
+
     job.status = status;
+    job.progress = validProgress;
 
     if (status === ConversionStatus.ERROR) {
       job.error = message;
       job.endTime = new Date();
     } else if (status === ConversionStatus.COMPLETED) {
       job.endTime = new Date();
+      job.progress = 100; // Ensure completion is 100%
     }
 
     this.sendProgress(jobId, {
       jobId,
       status,
-      progress,
+      progress: validProgress,
       message,
       details,
     });
 
+    // Auto-cleanup terminal states
     if (
       status === ConversionStatus.COMPLETED ||
-      status === ConversionStatus.ERROR
+      status === ConversionStatus.ERROR ||
+      status === ConversionStatus.CANCELLED
     ) {
       setTimeout(() => {
         this.cleanupJob(jobId);
-      }, 30000); // Cleanup after 30 seconds
+      }, 30000);
     }
   }
 }

@@ -15,6 +15,8 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import ForgeSDK from 'forge-apis';
 import { BIMFileExportType } from '../types/formats';
 import { env } from '../utils/load-env';
@@ -42,7 +44,124 @@ async function get2LeggedToken(): Promise<{
   return { oAuth2TwoLegged, credentials };
 }
 
-/// WEBSOCKET IMPLEMENTATION ///
+/**
+ * Checks the translation status of a file in Autodesk Forge.
+ * This function retrieves the manifest of the translated file
+ * and returns the status of the translation job.
+ * @param {string} urn - The URN of the translated file.
+ * @return {Promise<ForgeSDK.ApiResponse>} Returns a promise that resolves to the response of the translation status.
+ * @throws {Error} If the translation status cannot be retrieved or if the URN is invalid.
+ */
+export async function checkTranslationStatus(
+  urn: string,
+): Promise<ForgeSDK.ApiResponse> {
+  const { oAuth2TwoLegged, credentials } = await get2LeggedToken();
+  const derivativesApi = new ForgeSDK.DerivativesApi();
+
+  const manifest = derivativesApi.getManifest(
+    urn,
+    {},
+    oAuth2TwoLegged,
+    credentials,
+  );
+
+  return manifest;
+}
+
+/**
+ * Downloads and saves the IFC file after conversion.
+ * This function retrieves the IFC file from Autodesk Forge after a successful translation job,
+ * saves it to the local filesystem, and returns the file path.
+ * @param {string} urn - The URN of the file being converted.
+ * @param {string} jobId - The unique identifier of the conversion job.
+ * @return {Promise<{ success: boolean, filePath?: string, error?: string }>} Returns an object indicating success, the file path of the saved IFC file, or an error message if the download fails.
+ */
+async function downloadAndSaveIfcFile(
+  urn: string,
+  jobId: string,
+): Promise<{
+  success: boolean;
+  filePath?: string;
+  error?: string;
+}> {
+  try {
+    const { oAuth2TwoLegged, credentials } = await get2LeggedToken();
+    const derivativesApi = new ForgeSDK.DerivativesApi();
+
+    // Get the manifest first to find the IFC derivative
+    const manifest = await derivativesApi.getManifest(
+      urn,
+      {},
+      oAuth2TwoLegged,
+      credentials,
+    );
+
+    if (!manifest.body.derivatives) {
+      throw new Error('No derivatives found in manifest');
+    }
+
+    // Find the IFC derivative
+    let ifcDerivative = null;
+    for (const derivative of manifest.body.derivatives) {
+      if (derivative.outputType === 'ifc') {
+        ifcDerivative = derivative;
+        break;
+      }
+    }
+
+    if (!ifcDerivative) {
+      throw new Error('IFC derivative not found');
+    }
+
+    // The IFC derivative should have children with the actual files
+    if (!ifcDerivative.children || ifcDerivative.children.length === 0) {
+      throw new Error('No IFC files found in derivative');
+    }
+
+    // Get the first IFC file (usually there's only one)
+    const ifcFile = ifcDerivative.children[0];
+    const derivativeUrn = ifcFile.urn;
+
+    // Fetch the IFC file from Autodesk Forge
+    const downloadUrl = `https://developer.api.autodesk.com/derivativeservice/v2/derivatives/${encodeURIComponent(derivativeUrn)}`;
+
+    const response = await fetch(downloadUrl, {
+      headers: {
+        Authorization: `Bearer ${credentials.access_token}`,
+        Accept: 'application/octet-stream',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to download IFC file: ${response.statusText}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const fileContent = Buffer.from(arrayBuffer);
+
+    // Create the converted_models directory if it doesn't exist
+    const outputDir = path.join(
+      process.cwd(),
+      'public/models/converted_models',
+    );
+    if (!existsSync(outputDir)) {
+      mkdirSync(outputDir, { recursive: true });
+    }
+
+    // Create the file path
+    const fileName = `${jobId}.ifc`;
+    const filePath = path.join(outputDir, fileName);
+
+    // Save the file
+    writeFileSync(filePath, fileContent);
+
+    return { success: true, filePath };
+  } catch (error) {
+    console.error(`Error downloading/saving IFC file:`, error);
+    return { success: false, error: (error as Error).message };
+  }
+}
+
 /**
  * Monitors the conversion progress of a file in Autodesk Forge.
  * This function periodically checks the translation status and updates the WebSocket clients
@@ -63,7 +182,15 @@ async function monitorConversionProgress(
 
       const manifest = await checkTranslationStatus(urn);
       const status = manifest.body.status;
-      const progress = manifest.body.progress;
+      const progress =
+        manifest.body.progress === 'completed'
+          ? 100
+          : manifest.body.progress.split('%')[0];
+
+      console.log(
+        `Checking progress for job ${jobId}: status=${status}, progress=${progress}`,
+        manifest.body,
+      );
 
       if (status === 'success') {
         wsManager.updateProgress(
@@ -73,25 +200,21 @@ async function monitorConversionProgress(
           'Conversion completed successfully, preparing download...',
         );
 
-        const derivatives = manifest.body.derivatives || [];
-        let ifcDerivative = null;
+        // Download and save the IFC file
+        const downloadResult = await downloadAndSaveIfcFile(urn, jobId);
 
-        for (const derivative of derivatives) {
-          if (derivative.outputType === 'ifc') {
-            ifcDerivative = derivative;
-            break;
-          }
-        }
-
-        if (ifcDerivative) {
+        if (downloadResult.success) {
           wsManager.completeJob(jobId, {
-            downloadUrl: `/models/download/${urn}`,
-            fileName: 'converded_model.ifc',
+            downloadUrl: `${env.HOST}:${env.PORT}/public/models/converted_models/${jobId}.ifc`,
+            fileName: `${jobId}.ifc`,
+            fileSize: existsSync(downloadResult.filePath)
+              ? require('fs').statSync(downloadResult.filePath).size
+              : undefined,
           });
         } else {
           wsManager.handleJobError(
             jobId,
-            'IFC derivative not found after successful conversion.',
+            `Failed to download IFC file: ${downloadResult.error}`,
           );
         }
       } else if (status === 'failed') {
@@ -131,7 +254,12 @@ async function monitorConversionProgress(
           );
         }
       }
-    } catch (error) {}
+    } catch (error) {
+      wsManager.handleJobError(
+        jobId,
+        `Error checking progress: ${(error as Error).message}`,
+      );
+    }
   };
 
   setTimeout(checkProgress, 2000); // First check after 2 seconds
@@ -228,7 +356,9 @@ export async function convertRvtToIfcWS(
     );
 
     // Create URN and start translation
-    const urn = Buffer.from(`${bucketKey}:${objectKey}`).toString('base64');
+    const urn = Buffer.from(uploadResponse[0].completed.objectId).toString(
+      'base64',
+    );
 
     const job = {
       input: {
@@ -238,7 +368,7 @@ export async function convertRvtToIfcWS(
         formats: [
           {
             type: BIMFileExportType.IFC,
-            views: ['3d'],
+            views: ['2d', '3d'],
           },
         ],
       },
@@ -263,129 +393,4 @@ export async function convertRvtToIfcWS(
     );
     return { success: false, error: (error as Error).message };
   }
-}
-
-///WITHOUT WEBSOCKET IMPLEMENTATION ///
-/**
- * Converts a Revit file to IFC format using Autodesk Forge.
- * This function uploads the Revit file to a Forge bucket, starts a translation job,
- * and returns the job response.
- * @param {Buffer} file - The Revit file to be converted.
- * @param {BIMFileExportType} [type=BIMFileExportType.IFC] - The type of BIM file export format. Defaults to IFC.
- * @return {Promise<ForgeSDK.ApiResponse>} Returns a promise that resolves to the response of the translation job.
- * @throws {Error} If the upload or translation fails, or if the file is not a valid Revit file.
- */
-export async function convertRvtToIfc(
-  file: Buffer,
-  type: BIMFileExportType = BIMFileExportType.IFC,
-): Promise<ForgeSDK.ApiResponse> {
-  const { oAuth2TwoLegged, credentials } = await get2LeggedToken();
-
-  const bucketsApi = new ForgeSDK.BucketsApi();
-  const objectsApi = new ForgeSDK.ObjectsApi();
-  const derivativesApi = new ForgeSDK.DerivativesApi();
-
-  // Create a bucket if it doesn't exist
-  const bucketKey = 'ts-ifc-api-bucket';
-  try {
-    await bucketsApi.getBucketDetails(bucketKey, oAuth2TwoLegged, credentials);
-  } catch (error) {
-    await bucketsApi.createBucket(
-      { bucketKey: bucketKey, policyKey: 'transient' },
-      { xAdsRegion: 'us' },
-      oAuth2TwoLegged,
-      credentials,
-    );
-  }
-
-  // Upload the file to the bucket
-  const uploadResponse = await objectsApi.uploadResources(
-    bucketKey,
-    [
-      {
-        objectKey: `model-${Date.now()}.rvt`,
-        data: file,
-      },
-    ],
-    {},
-    oAuth2TwoLegged,
-    credentials,
-  );
-
-  // Start the translation job
-  const job = {
-    input: {
-      urn: Buffer.from(uploadResponse[0].completed.objectId).toString('base64'),
-    },
-    output: {
-      formats: [
-        {
-          type,
-          views: ['2d', '3d'],
-        },
-      ],
-    },
-  };
-
-  const jobResponse = await derivativesApi.translate(
-    job,
-    {},
-    oAuth2TwoLegged,
-    credentials,
-  );
-
-  return jobResponse;
-}
-
-/**
- * Checks the translation status of a file in Autodesk Forge.
- * This function retrieves the manifest of the translated file
- * and returns the status of the translation job.
- * @param {string} urn - The URN of the translated file.
- * @return {Promise<ForgeSDK.ApiResponse>} Returns a promise that resolves to the response of the translation status.
- * @throws {Error} If the translation status cannot be retrieved or if the URN is invalid.
- */
-export async function checkTranslationStatus(
-  urn: string,
-): Promise<ForgeSDK.ApiResponse> {
-  const { oAuth2TwoLegged, credentials } = await get2LeggedToken();
-  const derivativesApi = new ForgeSDK.DerivativesApi();
-
-  const manifest = derivativesApi.getManifest(
-    urn,
-    {},
-    oAuth2TwoLegged,
-    credentials,
-  );
-
-  return manifest;
-}
-
-/**
- * Downloads the converted IFC file from Autodesk Forge.
- * This function retrieves the manifest of the converted file and checks its status.
- * If the conversion is successful, it returns the response containing the IFC file.
- * @param {string} urn - The URN of the converted IFC file.
- * @return {Promise<ForgeSDK.ApiResponse>} Returns a promise that resolves to the response of the downloaded IFC file.
- * @throws {Error} If the conversion is not complete or if the download fails.
- */
-export async function downloadIfcFile(
-  urn: string,
-): Promise<ForgeSDK.ApiResponse> {
-  const { oAuth2TwoLegged, credentials } = await get2LeggedToken();
-  const derivativesApi = new ForgeSDK.DerivativesApi();
-
-  // Download the IFC file
-  const response = await derivativesApi.getManifest(
-    urn,
-    {},
-    oAuth2TwoLegged,
-    credentials,
-  );
-
-  if (response.body.status !== 'success') {
-    throw new Error('IFC file conversion is not complete or failed.');
-  }
-
-  return response;
 }

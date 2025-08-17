@@ -69,75 +69,69 @@ const ifcValidationFileValidation = fileValidationBase.refine((file) => {
 export async function modelRoutes(instance: FastifyInstance): Promise<void> {
   const app = instance.withTypeProvider<ZodTypeProvider>();
 
-  /// WEBSOCKET IMPLEMENTATION ///
-  app.register(async (fastify) => {
-    fastify.get(
-      `${BASE_URL}/ws/conversion`,
-      { websocket: true },
-      (socket, req) => {
-        const url = new URL(req.url, `http://${req.headers.host}`);
-        const jobId = url.searchParams.get('jobId');
+  app.register(async (app) => {
+    app.get(`${BASE_URL}/ws/conversion`, { websocket: true }, (socket, req) => {
+      // Extract jobId from query string
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const jobId = url.searchParams.get('jobId');
 
-        socket.on('message', async (message) => {
-          try {
-            const data = JSON.parse(message.toString());
+      socket.on('message', async (message) => {
+        try {
+          const data = JSON.parse(message.toString());
 
-            if (data.type === 'ping') {
-              socket.send(JSON.stringify({ type: 'pong' }));
-            } else if (data.type === 'subscribe') {
-              const subscribeJobId = data.jobId || jobId;
+          if (data.type === 'ping') {
+            socket.send(JSON.stringify({ type: 'pong' }));
+          } else if (data.type === 'subscribe') {
+            const subscribeJobId = data.jobId || jobId;
 
-              if (!subscribeJobId) {
-                socket.send(
-                  JSON.stringify({
-                    type: 'error',
-                    message: 'Job ID is required for subscription',
-                  }),
-                );
-                return;
-              }
-
-              const job = wsManager.getJob(subscribeJobId);
-
-              if (!job) {
-                socket.send(
-                  JSON.stringify({
-                    type: 'error',
-                    message: 'Job not found',
-                  }),
-                );
-                return;
-              }
-
-              // Registrar o socket para este job
-              wsManager.subscribeToJob(subscribeJobId, socket);
-
+            if (!subscribeJobId) {
               socket.send(
                 JSON.stringify({
-                  type: 'subscribed',
-                  jobId: subscribeJobId,
-                  message: 'Successfully subscribed to job updates',
+                  type: 'error',
+                  message: 'Job ID is required for subscription',
                 }),
               );
+              return;
             }
-          } catch (e) {
+
+            wsManager.subscribeToJob(subscribeJobId, socket);
+
             socket.send(
               JSON.stringify({
-                type: 'error',
-                message: 'Invalid message format',
+                type: 'subscribed',
+                jobId: subscribeJobId,
+                message: 'Successfully subscribed to job updates',
               }),
             );
           }
-        });
+        } catch (error) {
+          socket.send(
+            JSON.stringify({
+              type: 'error',
+              message: 'Invalid message format',
+            }),
+          );
+        }
+      });
 
+      if (jobId) {
+        wsManager.subscribeToJob(jobId, socket);
         socket.send(
           JSON.stringify({
-            type: 'connected',
-            message: 'WebSocket connection established',
+            type: 'auto-subscribed',
+            jobId,
+            message: 'Automatically subscribed to job updates',
           }),
         );
-      },
-    );
+      }
+
+      socket.send(
+        JSON.stringify({
+          type: 'connected',
+          message: 'WebSocket connection established',
+        }),
+      );
+    });
   });
 
   app.route({
@@ -177,18 +171,18 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
         const fileType = file.filename?.toLowerCase().split('.').pop();
         const buffer = await file.toBuffer();
         if (fileType === 'rvt') {
-          const jobId = wsManager.generateJobId();
+          const fileName = file.filename || 'model.rvt';
+          const jobId = wsManager.createJobWithoutSocket(fileName);
 
-          convertRvtToIfcWS(buffer, file.filename || 'model.rvt', jobId).catch(
-            (error) => {
-              wsManager.handleJobError(jobId, (error as Error).message);
-            },
-          );
+          convertRvtToIfcWS(buffer, fileName, jobId).catch((error) => {
+            console.error(`Conversion failed for job ${jobId}:`, error);
+            wsManager.handleJobError(jobId, (error as Error).message);
+          });
 
           return reply.status(200).send({
             jobId,
             message: 'Conversion job started',
-            websocketUrl: `/models/ws/conversion?jobId=${jobId}`,
+            websocketUrl: `/models/ws/conversion`,
           });
         }
       } catch (error) {
