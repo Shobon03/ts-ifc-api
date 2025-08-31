@@ -38,8 +38,17 @@ if (process.env.APP_ENV === 'production') {
  * Checks the connection to the Archicad Python service.
  * @returns A promise that resolves with a boolean indicating the connection status.
  */
-export async function checkArchicadPythonServiceConnection(): Promise<boolean> {
+export async function checkArchicadPythonServiceConnection(
+  jobId: string,
+): Promise<boolean> {
   try {
+    wsManager.updateProgress(
+      jobId,
+      20,
+      ConversionStatus.UPLOADING,
+      'Sending file to Archicad service',
+    );
+
     const { data, status } = await axios.get(
       `${PYTHON_API_CONNECTION_URL}/health`,
       {
@@ -79,12 +88,20 @@ export async function sendFileToArchicadPythonServiceWS(
       'Sending file to Archicad service',
     );
 
+    // Check if API is healthy
+    const isHealthy = await checkArchicadPythonServiceConnection(jobId);
+
+    if (!isHealthy) {
+      throw new Error('Archicad Python service is not healthy or reachable.');
+    }
+
+    // Send file
     const formData = new FormData();
     formData.append('file', new Blob([file]), filename);
 
     wsManager.updateProgress(
       jobId,
-      30,
+      50,
       ConversionStatus.PROCESSING,
       'File sent, waiting for conversion',
     );

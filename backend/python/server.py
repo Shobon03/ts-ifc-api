@@ -16,14 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
 from flask import Flask, request, jsonify, send_file
-import archicad
 from archicad import ACConnection
 import os
 import tempfile
 import logging
 
-app = Flask(__name__)
+logging.basicConfig(
+  level=logging.INFO,
+  format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 logging.basicConfig(level=logging.INFO)
+
+app = Flask(__name__)
 
 class ArchicadService:
   def __init__(self):
@@ -44,19 +48,22 @@ class ArchicadService:
       if not self.conn:
         raise ConnectionError("Not connected to Archicad.")
       
-      open_result = self.conn.commands.OpenProject(pln_path)
+      open_result = self.conn.commands.OpenFile(pln_path)
       logging.info(f"Open project: {open_result}")
       
-      export_params = {
-        'path': ifc_path,
-        'translatorIdentifier': 'IFC4',
-        'ifcVersion': 'IFC4',
-      }
+      result = self.conn.commands.ExecuteAddOnCommand(
+        addOnCommandId={
+          "commandNamescpace": "IFCExporter",
+          "commandName": "ExportToIFC"
+        },
+        addOnCommandParameters={
+          "inputPath": pln_path,
+          "outputPath": ifc_path,
+          "ifcVersion": "IFC4",
+        }
+      )
 
-      export_result = self.conn.commands.ExportIFC(export_params)
-      logging.info(f"Export result: {export_result}")
-
-      return True
+      return os.path.exists(ifc_path)
     
     except Exception as e:
       logging.error(f"Conversion error: {e}")
