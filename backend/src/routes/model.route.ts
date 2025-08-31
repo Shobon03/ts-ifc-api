@@ -19,7 +19,9 @@ import type { MultipartFile, MultipartValue } from '@fastify/multipart';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import z from 'zod';
+import { sendFileToArchicadPythonServiceWS } from '../services/archicad.service';
 import { convertRvtToIfcWS } from '../services/forge.service';
+import { IfcValidator } from '../services/ifc.service';
 import { BIMFileExportType } from '../types/formats';
 import { MAX_FILE_SIZE } from '../utils/max-filesize';
 import { wsManager } from '../ws/websocket';
@@ -41,13 +43,13 @@ const fileValidationBase = z
 
 /**
  * Validates a BIM file.
- * Ensures the file has a valid extension (.rvt or .arc).
+ * Ensures the file has a valid extension (.rvt or .pln).
  */
 const bimFileValidation = fileValidationBase.refine((file) => {
   if (!file?.filename) return false;
   const extension = file.filename.toLowerCase().split('.').pop();
-  return ['rvt', 'arc'].includes(extension || '');
-}, 'Invalid file type. Only .rvt and .arc files are allowed.');
+  return ['rvt', 'pln'].includes(extension || '');
+}, 'Invalid file type. Only .rvt and .pln files are allowed.');
 
 /**
  * Validates a file for IFC validation.
@@ -56,10 +58,10 @@ const bimFileValidation = fileValidationBase.refine((file) => {
 const ifcValidationFileValidation = fileValidationBase.refine((file) => {
   if (!file?.filename) return false;
   const extension = file.filename.toLowerCase().split('.').pop();
-  return ['ifc', 'json', 'xml', 'rvt', 'arc', 'step', 'stp'].includes(
+  return ['ifc', 'json', 'xml', 'rvt', 'pln', 'step', 'stp'].includes(
     extension || '',
   );
-}, 'Invalid file type. Only .ifc, .json, .xml, .rvt, .arc, and .step files are allowed.');
+}, 'Invalid file type. Only .ifc, .json, .xml, .rvt, .pln, and .step files are allowed.');
 
 /**
  * Registers model-related routes on the Fastify instance.
@@ -185,6 +187,24 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
             websocketUrl: `/models/ws/conversion`,
           });
         }
+
+        if (fileType === 'pln') {
+          const fileName = file.filename || 'model.pln';
+          const jobId = wsManager.createJobWithoutSocket(fileName);
+
+          sendFileToArchicadPythonServiceWS(buffer, fileName, jobId).catch(
+            (error) => {
+              console.error(`Conversion failed for job ${jobId}:`, error);
+              wsManager.handleJobError(jobId, (error as Error).message);
+            },
+          );
+
+          return reply.status(200).send({
+            jobId,
+            message: 'Conversion job started',
+            websocketUrl: `/models/ws/conversion`,
+          });
+        }
       } catch (error) {
         app.log.error('Error when processing model generation:', error);
         return reply.status(400).send({ error: error.message });
@@ -226,15 +246,41 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
         file: ifcValidationFileValidation,
       }),
       response: {
-        200: z.object({ message: z.string() }),
+        200: z.object({
+          valid: z.boolean(),
+          message: z.string(),
+        }),
+        400: z.object({
+          valid: z.boolean(),
+          message: z.string(),
+          error: z.any().optional(),
+        }),
       },
     },
     handler: async (request, reply) => {
       const { file } = request.body;
 
-      // TODO...
+      try {
+        const buffer = await file.toBuffer();
+        const fileContent = buffer.toString('utf-8');
 
-      return reply.status(200).send({ message: 'Model validation endpoint' });
+        const validator = new IfcValidator(fileContent);
+        const result = await validator.validate();
+
+        const validationText = !result.isValid ? 'invalid' : 'valid';
+
+        return reply.status(result.isValid ? 200 : 400).send({
+          valid: result.isValid,
+          message: `Model is ${validationText}`,
+          error: result.isValid ? undefined : result.errors,
+        });
+      } catch (error) {
+        return reply.status(400).send({
+          valid: false,
+          message: 'Error validating model',
+          error: (error as Error).message,
+        });
+      }
     },
   });
 }

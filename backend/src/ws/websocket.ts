@@ -223,7 +223,6 @@ class WebSocketManager {
   cleanupJob(jobId: string) {
     this.jobs.delete(jobId);
     this.sockets.delete(jobId);
-    console.log(`Job ${jobId} cleaned up`);
   }
 
   /**
@@ -264,8 +263,6 @@ class WebSocketManager {
     };
 
     this.jobs.set(jobId, job);
-
-    console.log(`Created job ${jobId} without socket for file ${fileName}`);
 
     // Send initial status for any future subscribers
     this.sendProgress(jobId, {
@@ -446,10 +443,6 @@ class WebSocketManager {
     if (job && !job.socket) {
       job.socket = socket;
     }
-
-    console.log(
-      `Socket subscribed to job ${jobId}. Total connections: ${socketSet.size}`,
-    );
 
     // Send current job status if exists
     if (job) {

@@ -187,11 +187,6 @@ async function monitorConversionProgress(
           ? 100
           : manifest.body.progress.split('%')[0];
 
-      console.log(
-        `Checking progress for job ${jobId}: status=${status}, progress=${progress}`,
-        manifest.body,
-      );
-
       if (status === 'success') {
         wsManager.updateProgress(
           jobId,
