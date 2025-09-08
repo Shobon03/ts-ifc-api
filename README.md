@@ -1,17 +1,46 @@
 # ts-ifc-api
-BIM Interoperability API, written in Typescript
 
-## Licença
+<p style="text-align: center;">
+<strong>BIM Interoperability API, written in Typescript</strong>
+</p>
 
-Este projeto está licenciado sob a GPL-3.0 - veja o arquivo [LICENSE](LICENSE) para detalhes.
+## Goals
 
-### Resumo da GPL-3.0
-- ✅ **Liberdade de uso**: Pode usar para qualquer propósito
-- ✅ **Liberdade de estudo**: Código fonte disponível  
-- ✅ **Liberdade de modificação**: Pode modificar e melhorar
-- ✅ **Liberdade de distribuição**: Pode redistribuir original e modificações
-- ⚠️ **Copyleft**: Modificações devem manter a mesma licença
+This project aims to add a layer of interoperability for BIM software, especially Revit and Archicad, by having an API, an interface and documentation.
 
-## Contribuições
+## Executing locally
 
-Contribuições são bem-vindas! Ao contribuir, você concorda que suas contribuições serão licenciadas sob a GPL-3.0.
+Clone this project:
+```bash
+git clone https://github.com/Shobon03/ts-ifc-api
+cd ts-ifc-api/
+```
+
+Install dependencies:
+```bash
+npm i
+```
+
+Copy `.env.example` to `.env`:
+```bash
+cd backend && cp .env.example .env && cd ..
+```
+
+Execute the application:
+```bash
+npm run dev
+```
+
+Ports after initialization:
+
+- http://localhost:3000 -> API
+- http://localhost:3001 -> Frontend
+- http://localhost:3002 -> Documentation
+
+## License
+
+This project is licensed under GPL-3.0 - see [LICENSE](LICENSE) for more details.
+
+## About
+
+This project is a part of my final thesis for my undergraduate Computer Science degree.

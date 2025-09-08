@@ -15,22 +15,90 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { createRootRoute, Link, Outlet } from '@tanstack/react-router';
+import { SiGithub } from '@icons-pack/react-simple-icons';
+import {
+  createRootRoute,
+  Link,
+  Outlet,
+  useLocation,
+} from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
+import { Moon, Sun } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { NavLink } from '@/components/ui/nav-link';
+import { SquareButton, SquareLinkButton } from '@/components/ui/square-button';
 
 export const Route = createRootRoute({
-  component: () => (
-    <>
-      <div className='p-2 flex gap-2'>
-        <Link to='/'>Home</Link>
-        <Link to='/about'>Sobre</Link>
-        <Link to='/model-generation'>Geração de Modelo</Link>
-        <Link to='/model-transform'>Transformação de Modelo</Link>
-        <Link to='/model-validation'>Validação de Modelo</Link>
-      </div>
-      <hr />
-      <Outlet />
-      <TanStackRouterDevtools initialIsOpen={false} />
-    </>
-  ),
+  component: RootComponent,
 });
+
+function RootComponent() {
+  const location = useLocation();
+
+  const [darkMode, setDarkMode] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('darkMode');
+    if (saved) {
+      setDarkMode(JSON.parse(saved));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (darkMode) {
+      localStorage.setItem('darkMode', JSON.stringify(darkMode));
+      document.documentElement.classList.add('dark');
+    } else {
+      localStorage.removeItem('darkMode');
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
+
+  useEffect(() => {
+    console.log(location);
+  }, [location]);
+
+  return (
+    <div
+      className={`min-h-screen transition-colors duration-300 ${darkMode ? 'dark' : ''}`}
+    >
+      <nav className='bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4'>
+        <div className='max-w-7xl mx-auto flex items-center justify-between'>
+          <div className='flex items-center space-x-8'>
+            <Link
+              to='/'
+              className='text-xl font-bold text-gray-900 dark:text-white'
+            >
+              IFC API
+            </Link>
+            <div className='flex space-x-6'>
+              <NavLink to='/' name='Home' />
+              <NavLink to='/about' name='Sobre' />
+              <NavLink to='/model-generation' name='Gerar IFC' />
+              <NavLink to='/model-transform' name='Transformação do Modelo' />
+              <NavLink to='/model-validation' name='Validação de IFC' />
+            </div>
+          </div>
+          <div className='flex items-center space-x-4'>
+            <SquareLinkButton
+              href='https://github.com/Shobon03/ts-ifc-api'
+              title='Repositório do GitHub'
+            >
+              <SiGithub size={20} title='' />
+            </SquareLinkButton>
+            <SquareButton
+              onClick={() => setDarkMode(!darkMode)}
+              title={`Mudar para modo ${darkMode ? 'claro' : 'escuro'}`}
+            >
+              {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </SquareButton>
+          </div>
+        </div>
+      </nav>
+      <main className='bg-white dark:bg-gray-900 text-gray-900 dark:text-white'>
+        <Outlet />
+      </main>
+      <TanStackRouterDevtools initialIsOpen={false} />
+    </div>
+  );
+}

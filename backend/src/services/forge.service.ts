@@ -389,3 +389,27 @@ export async function convertRvtToIfcWS(
     return { success: false, error: (error as Error).message };
   }
 }
+
+export async function convertIfcToRvtWS(
+  file: Buffer,
+  filename: string,
+  jobId: string,
+): Promise<{
+  success: boolean;
+  urn?: string;
+  error?: string;
+}> {
+  wsManager.updateProgress(
+    jobId,
+    10,
+    ConversionStatus.UPLOADING,
+    'Uploading file to Forge',
+  );
+
+  // Todo...
+
+  return {
+    success: false,
+    error: 'IFC to RVT conversion is not supported yet.',
+  };
+}
