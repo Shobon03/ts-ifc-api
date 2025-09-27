@@ -62,9 +62,18 @@ async function main(): Promise<void> {
   }
 }
 
+/**
+ * Handles graceful shutdown of the server.
+ * It closes the Fastify instance if it exists, logs the shutdown process, and exits the process with the specified exit code.
+ * @param {number | string | null | undefined} [exitCode=0] - The exit code to use when terminating the process. Defaults to 0 (success).
+ * @returns {Promise<void>} A promise that resolves when the shutdown process is complete.
+ * @example
+ * process.on('SIGINT', () => handleGracefulShutdown(0));
+ * process.on('SIGTERM', () => handleGracefulShutdown(0));
+ */
 async function handleGracefulShutdown(
-  exitCode: number | string | null | undefined,
-) {
+  exitCode: number | string | null | undefined = 0,
+): Promise<void> {
   if (app) {
     app.log.info('Shutting down server gracefully...');
     try {
@@ -78,10 +87,11 @@ async function handleGracefulShutdown(
   app = null;
   console.log('Server reference cleared.');
 
-  process.exit(Number(exitCode ?? 0));
+  const code = Number(exitCode);
+  process.exit(Number.isNaN(code) ? 0 : code);
 }
 
-process.on('SIGINT', handleGracefulShutdown);
-process.on('SIGTERM', handleGracefulShutdown);
+process.on('SIGINT', () => handleGracefulShutdown(0));
+process.on('SIGTERM', () => handleGracefulShutdown(0));
 
 main();
