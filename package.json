@@ -4,22 +4,23 @@
   "description": "A BIM interoperability API, written in Typescript",
   "private": true,
   "workspaces": [
-    "backend",
+    "backend/node",
     "frontend",
     "documentation"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:documentation\"",
-    "dev:backend": "npm run dev --workspace=backend",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:python\" \"npm run dev:frontend\" \"npm run dev:documentation\"",
+    "dev:backend": "npm run dev --workspace=backend/node",
+    "dev:python": "cd backend/python && python src/server.py",
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev:documentation": "npm run dev --workspace=documentation",
     "build": "npm run build --workspaces --if-present",
-    "build:backend": "npm run build --workspace=backend",
+    "build:backend": "npm run build --workspace=backend/node",
     "build:frontend": "npm run build --workspace=frontend",
     "build:documentation": "npm run build --workspace=documentation",
-    "start": "npm run start --workspace=backend",
+    "start": "npm run start --workspace=backend/node",
     "test": "npm run test --workspaces --if-present",
-    "test:backend": "npm run test --workspace=backend",
+    "test:backend": "npm run test --workspace=backend/node",
     "test:frontend": "npm run test --workspace=frontend",
     "test:documentation": "npm run test --workspace=documentation"
   },
@@ -41,7 +42,7 @@
   },
   "license": "GPL-3.0-or-later",
   "devDependencies": {
-    "@biomejs/biome": "2.2.0"
+    "@biomejs/biome": "^2.2.4"
   },
   "engines": {
     "node": ">=18.0.0",

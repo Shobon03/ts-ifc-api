@@ -2,7 +2,8 @@
 # Script para configurar ambiente Python
 
 BACKEND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VENV_DIR="$BACKEND_DIR/python-env"
+VENV_DIR_NAME="venv-python"
+VENV_DIR="$BACKEND_DIR/$VENV_DIR_NAME"
 
 echo "🐍 Setting up Python environment..."
 
@@ -25,4 +26,4 @@ fi
 
 echo "✅ Python environment ready!"
 echo "Virtual environment location: $VENV_DIR"
-echo "To activate manually, run: source python-env/bin/activate"
+echo "To activate manually, run: source $VENV_DIR_NAME/bin/activate"
