@@ -1,0 +1,28 @@
+﻿/* *****************************************************************************
+// Localizable resource description for the IFC to Archicad Add-On
+// ****************************************************************************/
+
+#include "Resources.hpp"
+
+'STR#' IFC_TO_ARCHICAD_ADDON_NAME "Add-on Name and Description" {
+/* [  1] */		"IFC to Archicad"
+/* [  2] */		"IFC to Archicad Add-On"
+}
+
+
+'STR#' IFCAPI_TEST_MENU_STRINGS "IFC to Archicad Menu" {
+/* [   ] */		"Test"
+/* [   ] */		"IFC to Archicad"
+/* [  1] */		"Load IFC File...^E2^E3"
+/* [  2] */		"Save Project as PLN...^E2^E3"
+/* [  3] */		"Export Project as IFC...^E2^E3"
+}
+
+
+'STR#' IFCAPI_TEST_MENU_PROMPT_STRINGS "Menu Prompt Strings" {
+/* [   ] */		""
+/* [   ] */		""
+/* [  1] */		"Load IFC file from desktop."
+/* [  2] */		"Save current project as PLN file to desktop."
+/* [  3] */		"Export current project as IFC file to desktop."
+}

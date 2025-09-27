@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "IfcToRevitConverter": {
+      "commandName": "Project"
+    },
+    "IfcToRevitConverterExecutable": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Program Files\\Autodesk\\Revit 2025\\Revit.exe"
+    }
+  }
+}

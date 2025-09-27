@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36414.22 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IfcToRevitConverter", "IfcToRevitConverter\IfcToRevitConverter.csproj", "{28CCA56A-CC88-43AF-A68B-BA647A0DF2CD}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{28CCA56A-CC88-43AF-A68B-BA647A0DF2CD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{28CCA56A-CC88-43AF-A68B-BA647A0DF2CD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{28CCA56A-CC88-43AF-A68B-BA647A0DF2CD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{28CCA56A-CC88-43AF-A68B-BA647A0DF2CD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3A32A3F2-690D-4AC7-92CE-67E245274386}
+	EndGlobalSection
+EndGlobal
