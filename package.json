@@ -42,7 +42,7 @@
   },
   "license": "GPL-3.0-or-later",
   "devDependencies": {
-    "@biomejs/biome": "^2.2.4"
+    "@biomejs/biome": "^2.2.6"
   },
   "engines": {
     "node": ">=18.0.0",
