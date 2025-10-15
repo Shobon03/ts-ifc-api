@@ -11,13 +11,19 @@
 
 
 'STR#' IFCAPI_TEST_MENU_STRINGS "IFC to Archicad Menu" {
-/* [   ] */		"Test"
-/* [   ] */		"IFC to Archicad"
+/* [   ] */		"IFC Conversion Plugin"
+/* [   ] */		"[DEBUG] Load Options"
 /* [  1] */		"Load IFC File...^E2^E3"
 /* [  2] */		"Save Project as PLN...^E2^E3"
 /* [  3] */		"Export Project as IFC...^E2^E3"
 }
 
+'STR#' IFCAPI_WEBSOCKET_MENU_STRINGS "WebSocket Menu" {
+/* [   ] */		"IFC Conversion Plugin"
+/* [   ] */		"WebSocket"
+/* [  1] */		"Start Server^E2^E3"
+/* [  2] */		"Stop Server^E2^E3"
+}
 
 'STR#' IFCAPI_TEST_MENU_PROMPT_STRINGS "Menu Prompt Strings" {
 /* [   ] */		""
@@ -25,4 +31,11 @@
 /* [  1] */		"Load IFC file from desktop."
 /* [  2] */		"Save current project as PLN file to desktop."
 /* [  3] */		"Export current project as IFC file to desktop."
+}
+
+'STR#' IFCAPI_WEBSOCKET_MENU_PROMPT_STRINGS "WebSocket Menu Prompt Strings" {
+/* [   ] */		""
+/* [   ] */		""
+/* [  1] */		"Start WebSocket server on port 8081."
+/* [  2] */		"Stop WebSocket server."
 }

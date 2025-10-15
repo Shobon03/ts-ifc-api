@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (C) 2025 Matheus Piovezan Teixeira
  *
  * This program is free software: you can redistribute it and/or modify
@@ -21,5 +21,10 @@
 void LoadIFCFile ();
 void SaveProjectAsPln ();
 void ExportProjectAsIFC ();
+
+#ifdef WEBSOCKET_ENABLED
+void StartWebSocketServer ();
+void StopWebSocketServer ();
+#endif
 
 #endif

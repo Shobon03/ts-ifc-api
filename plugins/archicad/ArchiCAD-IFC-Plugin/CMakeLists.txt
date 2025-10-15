@@ -19,7 +19,7 @@ function (SetCompilerOptions target)
 	target_compile_features (${target} PUBLIC cxx_std_17)
 	target_compile_options (${target} PUBLIC "$<$<CONFIG:Debug>:-DDEBUG>")
 	if (WIN32)
-		target_compile_options (${target} PUBLIC /W3 /WX /wd4996 /Zc:wchar_t-)
+		target_compile_options (${target} PUBLIC /W3 /WX /wd4996 /Zc:wchar_t- /bigobj)
 	else ()
 		target_compile_options (${target} PUBLIC -Wall -Werror -fvisibility=hidden
 			-Wno-multichar
@@ -201,15 +201,43 @@ target_include_directories (AddOn PUBLIC
 	${AC_API_DEVKIT_DIR}/Support/Inc
 )
 
+# Boost.Beast for WebSocket (modern, secure, well-maintained)
+# Install via vcpkg: vcpkg install boost-beast boost-asio
+find_package(Boost COMPONENTS system thread)
+if(Boost_FOUND)
+	message(STATUS "Found Boost: ${Boost_VERSION}")
+	message(STATUS "Boost include dir: ${Boost_INCLUDE_DIRS}")
+	message(STATUS "Boost libraries: ${Boost_LIBRARIES}")
+
+	target_include_directories(AddOn PUBLIC ${Boost_INCLUDE_DIRS})
+	target_link_libraries(AddOn ${Boost_LIBRARIES})
+	target_compile_definitions(AddOn PRIVATE
+		WEBSOCKET_ENABLED
+		BOOST_BEAST_USE_STD_STRING_VIEW
+	)
+
+	# Disable Boost auto-linking on Windows (we handle it manually)
+	if(WIN32)
+		target_compile_definitions(AddOn PRIVATE BOOST_ALL_NO_LIB)
+	endif()
+else()
+	message(WARNING "Boost not found. WebSocket functionality will be disabled.")
+	message(WARNING "Install via vcpkg: vcpkg install boost-beast")
+	message(WARNING "This will also install boost-asio automatically.")
+endif()
+
 if (WIN32)
 	target_link_libraries (AddOn
 		"${AC_API_DEVKIT_DIR}/Support/Lib/ACAP_STAT.lib"
+		ws2_32  # Winsock2 for WebSocket
+		wsock32 # Additional socket library
 	)
 else ()
 	find_library (CocoaFramework Cocoa)
 	target_link_libraries (AddOn
 		"${AC_API_DEVKIT_DIR}/Support/Lib/libACAP_STAT.a"
 		${CocoaFramework}
+		pthread  # Required for ASIO on Unix
 	)
 endif ()
 
