@@ -30,6 +30,10 @@ import {
 import { healthRoute } from './routes/health.route';
 import { modelRoutes } from './routes/model.route';
 import { MAX_FILE_SIZE } from './utils/max-filesize';
+import { pythonBridge } from './ws/python-bridge';
+import { revitPlugin } from './ws/revit-plugin';
+import { archicadPlugin } from './ws/archicad-plugin';
+import { wsManager } from './ws/websocket';
 
 /**
  * Initializes and configures the Fastify application.
@@ -100,15 +104,80 @@ export async function initApp(): Promise<FastifyInstance> {
 
   await app.register(fastifyWebsocket);
 
+  // Register WebSocket endpoints
   app.register(async (app) => {
+    // Client-facing WebSocket for job progress tracking
+    app.get(
+      '/ws/jobs/:jobId',
+      {
+        websocket: true,
+      },
+      (socket, req) => {
+        const jobId = (req.params as { jobId: string }).jobId;
+
+        if (!jobId) {
+          socket.close(1008, 'Missing job ID');
+          return;
+        }
+
+        console.log(`Client subscribed to job ${jobId}`);
+        wsManager.subscribeToJob(jobId, socket);
+
+        socket.on('message', (message) => {
+          try {
+            const data = JSON.parse(message.toString());
+
+            if (data.type === 'ping') {
+              socket.send(JSON.stringify({ type: 'pong' }));
+            }
+          } catch (error) {
+            console.error('Error parsing client message:', error);
+          }
+        });
+      },
+    );
+
+    // Python service WebSocket bridge
+    app.get(
+      '/ws/python-bridge',
+      {
+        websocket: true,
+      },
+      (socket, _req) => {
+        pythonBridge.registerPythonConnection(socket);
+      },
+    );
+
+    // Revit plugin WebSocket connection
+    app.get(
+      '/ws/revit-plugin',
+      {
+        websocket: true,
+      },
+      (socket, _req) => {
+        revitPlugin.registerRevitConnection(socket);
+      },
+    );
+
+    // Archicad plugin WebSocket connection
+    app.get(
+      '/ws/archicad-plugin',
+      {
+        websocket: true,
+      },
+      (socket, _req) => {
+        archicadPlugin.registerArchicadConnection(socket);
+      },
+    );
+
+    // Legacy test endpoint
     app.get(
       '/ws',
       {
         websocket: true,
       },
-      (socket, req) => {
+      (socket, _req) => {
         socket.on('message', (message) => {
-          // Echo the message back to the client
           socket.send(`Hello from server! You sent: ${message}`);
         });
       },

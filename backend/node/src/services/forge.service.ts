@@ -15,57 +15,119 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import ForgeSDK from 'forge-apis';
+import { AuthenticationClient, Scopes } from '@aps_sdk/authentication';
+import {
+  type JobPayload,
+  type Manifest,
+  ModelDerivativeClient,
+} from '@aps_sdk/model-derivative';
+import { OssClient, Region as OssRegion } from '@aps_sdk/oss';
+import axios from 'axios';
 import { BIMFileExportType } from '../types/formats';
 import { env } from '../utils/load-env';
 import { ConversionStatus, wsManager } from '../ws/websocket';
 
-/**
- * Initializes a 2-legged OAuth client for Autodesk Forge.
- * This client is used for server-to-server communication with Forge APIs.
- * It requires the Autodesk client ID and secret from environment variables.
- * @return {Promise<{ oAuth2TwoLegged: ForgeSDK.AuthClientTwoLegged, credentials: ForgeSDK.AuthToken }>} Returns an object containing the OAuth client and the authentication credentials.
- * @throws {Error} If the authentication fails or the credentials are invalid.
- */
-async function get2LeggedToken(): Promise<{
-  oAuth2TwoLegged: ForgeSDK.AuthClientTwoLegged;
-  credentials: ForgeSDK.AuthToken;
-}> {
-  const oAuth2TwoLegged = new ForgeSDK.AuthClientTwoLegged(
-    env.AUTODESK_CLIENT_ID,
-    env.AUTODESK_CLIENT_SECRET,
-    ['data:read', 'data:write', 'bucket:create', 'bucket:read'],
-    true,
-  );
+const authenticationClient = new AuthenticationClient();
+const ossClient = new OssClient();
+const modelDerivativeClient = new ModelDerivativeClient();
 
-  const credentials = await oAuth2TwoLegged.authenticate();
-  return { oAuth2TwoLegged, credentials };
+const CONVERTED_MODELS_DIR = path.join(
+  process.cwd(),
+  'public',
+  'models',
+  'converted_models',
+);
+
+function toBase64Url(value: string): string {
+  return Buffer.from(value)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+function ensureConvertedDirectoryExists(): void {
+  if (!existsSync(CONVERTED_MODELS_DIR)) {
+    mkdirSync(CONVERTED_MODELS_DIR, { recursive: true });
+  }
+}
+
+function buildDownloadUrl(jobId: string): string {
+  const downloadPath = `/public/models/converted_models/${jobId}.ifc`;
+  if (env.PUBLIC_BASE_URL) {
+    return `${env.PUBLIC_BASE_URL.replace(/\/+$/, '')}${downloadPath}`;
+  }
+
+  const fallbackHost = env.HOST ?? 'http://localhost';
+  const base =
+    fallbackHost.startsWith('http://') || fallbackHost.startsWith('https://')
+      ? fallbackHost
+      : `http://${fallbackHost}`;
+
+  try {
+    const url = new URL(base);
+    if (env.PORT) {
+      url.port = env.PORT;
+    }
+    return new URL(downloadPath, url).toString();
+  } catch {
+    const portSegment = env.PORT ? `:${env.PORT}` : '';
+    return `${base.replace(/\/+$/, '')}${portSegment}${downloadPath}`;
+  }
+}
+
+function isNotFoundError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const maybeStatus =
+    (error as { statusCode?: number }).statusCode ??
+    (error as { status?: number }).status ??
+    (error as { response?: { status?: number } }).response?.status ??
+    (error as { axiosError?: { response?: { status?: number } } }).axiosError
+      ?.response?.status;
+
+  return maybeStatus === 404;
+}
+
+async function ensureBucket(
+  accessToken: string,
+  bucketKey: string,
+): Promise<void> {
+  try {
+    await ossClient.getBucketDetails(bucketKey, { accessToken });
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      throw error;
+    }
+
+    await ossClient.createBucket(
+      OssRegion.Us,
+      {
+        bucketKey,
+        policyKey: 'transient',
+      },
+      { accessToken },
+    );
+  }
 }
 
 /**
- * Checks the translation status of a file in Autodesk Forge.
+ * Checks the translation status of a file in Autodesk Platform Services.
  * This function retrieves the manifest of the translated file
  * and returns the status of the translation job.
  * @param {string} urn - The URN of the translated file.
- * @return {Promise<ForgeSDK.ApiResponse>} Returns a promise that resolves to the response of the translation status.
+ * @return {Promise<any>} Returns a promise that resolves to the manifest of the translation status.
  * @throws {Error} If the translation status cannot be retrieved or if the URN is invalid.
  */
 export async function checkTranslationStatus(
+  accessToken: string,
   urn: string,
-): Promise<ForgeSDK.ApiResponse> {
-  const { oAuth2TwoLegged, credentials } = await get2LeggedToken();
-  const derivativesApi = new ForgeSDK.DerivativesApi();
-
-  const manifest = derivativesApi.getManifest(
-    urn,
-    {},
-    oAuth2TwoLegged,
-    credentials,
-  );
-
-  return manifest;
+): Promise<Manifest> {
+  return modelDerivativeClient.getManifest(urn, { accessToken });
 }
 
 /**
@@ -77,6 +139,7 @@ export async function checkTranslationStatus(
  * @return {Promise<{ success: boolean, filePath?: string, error?: string }>} Returns an object indicating success, the file path of the saved IFC file, or an error message if the download fails.
  */
 async function downloadAndSaveIfcFile(
+  accessToken: string,
   urn: string,
   jobId: string,
 ): Promise<{
@@ -85,79 +148,53 @@ async function downloadAndSaveIfcFile(
   error?: string;
 }> {
   try {
-    const { oAuth2TwoLegged, credentials } = await get2LeggedToken();
-    const derivativesApi = new ForgeSDK.DerivativesApi();
+    const manifest = await modelDerivativeClient.getManifest(urn, {
+      accessToken,
+    });
 
-    // Get the manifest first to find the IFC derivative
-    const manifest = await derivativesApi.getManifest(
-      urn,
-      {},
-      oAuth2TwoLegged,
-      credentials,
-    );
-
-    if (!manifest.body.derivatives) {
+    if (!manifest.derivatives?.length) {
       throw new Error('No derivatives found in manifest');
     }
 
-    // Find the IFC derivative
-    let ifcDerivative = null;
-    for (const derivative of manifest.body.derivatives) {
-      if (derivative.outputType === 'ifc') {
-        ifcDerivative = derivative;
-        break;
-      }
-    }
+    const ifcDerivative = manifest.derivatives.find(
+      (derivative) =>
+        derivative.outputType?.toLowerCase() === BIMFileExportType.IFC,
+    );
 
     if (!ifcDerivative) {
       throw new Error('IFC derivative not found');
     }
 
-    // The IFC derivative should have children with the actual files
-    if (!ifcDerivative.children || ifcDerivative.children.length === 0) {
-      throw new Error('No IFC files found in derivative');
+    const ifcResource = ifcDerivative.children?.find((child) => child.urn);
+
+    if (!ifcResource?.urn) {
+      throw new Error('No IFC resources available in derivative');
     }
 
-    // Get the first IFC file (usually there's only one)
-    const ifcFile = ifcDerivative.children[0];
-    const derivativeUrn = ifcFile.urn;
+    const derivativeUrn = ifcResource.urn;
 
-    // Fetch the IFC file from Autodesk Forge
-    const downloadUrl = `https://developer.api.autodesk.com/derivativeservice/v2/derivatives/${encodeURIComponent(derivativeUrn)}`;
+    const derivativeDownload = await modelDerivativeClient.getDerivativeUrl(
+      derivativeUrn,
+      urn,
+      { accessToken },
+    );
 
-    const response = await fetch(downloadUrl, {
-      headers: {
-        Authorization: `Bearer ${credentials.access_token}`,
-        Accept: 'application/octet-stream',
-      },
+    if (!derivativeDownload.url) {
+      throw new Error('Derivative download URL missing from response');
+    }
+
+    ensureConvertedDirectoryExists();
+
+    const response = await axios.get<ArrayBuffer>(derivativeDownload.url, {
+      responseType: 'arraybuffer',
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to download IFC file: ${response.statusText}`);
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    const fileContent = Buffer.from(arrayBuffer);
-
-    // Create the converted_models directory if it doesn't exist
-    const outputDir = path.join(
-      process.cwd(),
-      'public/models/converted_models',
-    );
-    if (!existsSync(outputDir)) {
-      mkdirSync(outputDir, { recursive: true });
-    }
-
-    // Create the file path
-    const fileName = `${jobId}.ifc`;
-    const filePath = path.join(outputDir, fileName);
-
-    // Save the file
-    writeFileSync(filePath, fileContent);
+    const filePath = path.join(CONVERTED_MODELS_DIR, `${jobId}.ifc`);
+    writeFileSync(filePath, Buffer.from(response.data));
 
     return { success: true, filePath };
   } catch (error) {
-    console.error(`Error downloading/saving IFC file:`, error);
+    console.error('Error downloading/saving IFC file:', error);
     return { success: false, error: (error as Error).message };
   }
 }
@@ -170,22 +207,22 @@ async function downloadAndSaveIfcFile(
  * @param {string} jobId - The unique identifier of the conversion job.
  */
 async function monitorConversionProgress(
+  accessToken: string,
   urn: string,
   jobId: string,
 ): Promise<void> {
-  const maxAttempts = 60; // 5 min max
-  let attempts = 0;
+  const POLLING_INTERVAL = 5000;
+  const MAX_ATTEMPTS = 60;
 
-  const checkProgress = async () => {
+  const delay = (ms: number) =>
+    new Promise((resolve) => setTimeout(resolve, ms));
+
+  await delay(2000);
+
+  for (let attempts = 0; attempts < MAX_ATTEMPTS; attempts++) {
     try {
-      attempts++;
-
-      const manifest = await checkTranslationStatus(urn);
-      const status = manifest.body.status;
-      const progress =
-        manifest.body.progress === 'completed'
-          ? 100
-          : manifest.body.progress.split('%')[0];
+      const manifest = await checkTranslationStatus(accessToken, urn);
+      const { status, progress } = manifest;
 
       if (status === 'success') {
         wsManager.updateProgress(
@@ -195,16 +232,19 @@ async function monitorConversionProgress(
           'Conversion completed successfully, preparing download...',
         );
 
-        // Download and save the IFC file
-        const downloadResult = await downloadAndSaveIfcFile(urn, jobId);
-
+        const downloadResult = await downloadAndSaveIfcFile(
+          accessToken,
+          urn,
+          jobId,
+        );
         if (downloadResult.success) {
           wsManager.completeJob(jobId, {
-            downloadUrl: `${env.HOST}:${env.PORT}/public/models/converted_models/${jobId}.ifc`,
+            downloadUrl: buildDownloadUrl(jobId),
             fileName: `${jobId}.ifc`,
-            fileSize: existsSync(downloadResult.filePath)
-              ? require('fs').statSync(downloadResult.filePath).size
-              : undefined,
+            fileSize:
+              downloadResult.filePath && existsSync(downloadResult.filePath)
+                ? statSync(downloadResult.filePath).size
+                : undefined,
           });
         } else {
           wsManager.handleJobError(
@@ -212,42 +252,26 @@ async function monitorConversionProgress(
             `Failed to download IFC file: ${downloadResult.error}`,
           );
         }
-      } else if (status === 'failed') {
+        return;
+      }
+
+      if (status === 'failed') {
         wsManager.handleJobError(jobId, 'File conversion failed.');
-      } else if (status === 'inprogress') {
-        const progressPercent = Math.min(70 + (progress || 0) * 0.2, 89);
+        return;
+      }
+
+      if (status === 'inprogress') {
+        const manifestProgress =
+          progress === 'complete'
+            ? 100
+            : Number.parseInt(progress.replace('%', ''), 10) || 0;
+        const progressPercent = Math.min(70 + manifestProgress * 0.2, 89);
         wsManager.updateProgress(
           jobId,
           progressPercent,
           ConversionStatus.PROCESSING,
-          `Conversion in progress: ${progress || 0}%`,
+          `Conversion in progress: ${manifestProgress}%`,
         );
-
-        if (attempts < maxAttempts) {
-          setTimeout(checkProgress, 5000); // Check again in 5 seconds
-        } else {
-          wsManager.handleJobError(
-            jobId,
-            'Conversion timed out after multiple attempts.',
-          );
-        }
-      } else {
-        const progressPercent = Math.min(70 + attempts, 85);
-        wsManager.updateProgress(
-          jobId,
-          progressPercent,
-          ConversionStatus.PROCESSING,
-          `Conversion status: ${status}`,
-        );
-
-        if (attempts < maxAttempts) {
-          setTimeout(checkProgress, 5000); // Check again in 5 seconds
-        } else {
-          wsManager.handleJobError(
-            jobId,
-            'Conversion timed out after multiple attempts.',
-          );
-        }
       }
     } catch (error) {
       wsManager.handleJobError(
@@ -255,9 +279,11 @@ async function monitorConversionProgress(
         `Error checking progress: ${(error as Error).message}`,
       );
     }
-  };
 
-  setTimeout(checkProgress, 2000); // First check after 2 seconds
+    await delay(POLLING_INTERVAL);
+  }
+
+  wsManager.handleJobError(jobId, 'Conversion timed out.');
 }
 
 /**
@@ -280,66 +306,57 @@ export async function convertRvtToIfcWS(
   error?: string;
 }> {
   try {
+    const token = await authenticationClient.getTwoLeggedToken(
+      env.AUTODESK_CLIENT_ID,
+      env.AUTODESK_CLIENT_SECRET,
+      [
+        Scopes.DataRead,
+        Scopes.DataWrite,
+        Scopes.DataCreate,
+        Scopes.BucketCreate,
+        Scopes.BucketRead,
+      ],
+    );
+
+    const accessToken = token.access_token;
+
     wsManager.updateProgress(
       jobId,
       10,
       ConversionStatus.UPLOADING,
-      'Uploading file to Forge',
+      'Uploading file to APS',
     );
 
-    const { oAuth2TwoLegged, credentials } = await get2LeggedToken();
-    const bucketsApi = new ForgeSDK.BucketsApi();
-    const objectsApi = new ForgeSDK.ObjectsApi();
-    const derivativesApi = new ForgeSDK.DerivativesApi();
-
-    // Create bucket
     const bucketKey = 'ts-ifc-api-bucket';
+
     try {
-      await bucketsApi.getBucketDetails(
-        bucketKey,
-        oAuth2TwoLegged,
-        credentials,
-      );
+      await ensureBucket(accessToken, bucketKey);
     } catch (error) {
-      if (error.statusCode === 404) {
-        wsManager.updateProgress(
-          jobId,
-          20,
-          ConversionStatus.UPLOADING,
-          'Creating bucket in Forge',
-        );
-        await bucketsApi.createBucket(
-          { bucketKey: bucketKey, policyKey: 'transient' },
-          { xAdsRegion: 'us' },
-          oAuth2TwoLegged,
-          credentials,
-        );
-      }
+      wsManager.handleJobError(
+        jobId,
+        `Unable to prepare storage bucket: ${(error as Error).message}`,
+      );
+      return { success: false, error: (error as Error).message };
     }
 
-    // Upload file
     const objectKey = `model-${Date.now()}-${filename}`;
     wsManager.updateProgress(
       jobId,
       40,
       ConversionStatus.UPLOADING,
-      'Uploading file to Forge',
+      'Uploading file to bucket',
     );
 
-    const uploadResponse = await objectsApi.uploadResources(
+    const uploadResponse = await ossClient.uploadObject(
       bucketKey,
-      [
-        {
-          objectKey,
-          data: file,
-        },
-      ],
-      {},
-      oAuth2TwoLegged,
-      credentials,
+      objectKey,
+      file,
+      {
+        accessToken,
+      },
     );
 
-    if (!uploadResponse[0]?.completed?.objectId) {
+    if (!uploadResponse.objectId) {
       throw new Error('File upload failed');
     }
 
@@ -350,12 +367,9 @@ export async function convertRvtToIfcWS(
       'Starting file conversion',
     );
 
-    // Create URN and start translation
-    const urn = Buffer.from(uploadResponse[0].completed.objectId).toString(
-      'base64',
-    );
+    const urn = toBase64Url(uploadResponse.objectId);
 
-    const job = {
+    const job: JobPayload = {
       input: {
         urn,
       },
@@ -363,13 +377,12 @@ export async function convertRvtToIfcWS(
         formats: [
           {
             type: BIMFileExportType.IFC,
-            views: ['2d', '3d'],
           },
         ],
       },
     };
 
-    await derivativesApi.translate(job, {}, oAuth2TwoLegged, credentials);
+    await modelDerivativeClient.startJob(job, { accessToken });
 
     wsManager.updateProgress(
       jobId,
@@ -378,7 +391,7 @@ export async function convertRvtToIfcWS(
       'Conversion job started, monitoring progress...',
     );
 
-    monitorConversionProgress(urn, jobId);
+    void monitorConversionProgress(accessToken, urn, jobId);
 
     return { success: true, urn };
   } catch (error) {
@@ -391,8 +404,8 @@ export async function convertRvtToIfcWS(
 }
 
 export async function convertIfcToRvtWS(
-  file: Buffer,
-  filename: string,
+  _file: Buffer,
+  _filename: string,
   jobId: string,
 ): Promise<{
   success: boolean;

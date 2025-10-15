@@ -95,9 +95,10 @@ export async function sendFileToArchicadPythonServiceWS(
       throw new Error('Archicad Python service is not healthy or reachable.');
     }
 
-    // Send file
+    // Send file with job ID for tracking
     const formData = new FormData();
     formData.append('file', new Blob([file]), filename);
+    formData.append('jobId', jobId);
 
     wsManager.updateProgress(
       jobId,
@@ -107,13 +108,14 @@ export async function sendFileToArchicadPythonServiceWS(
     );
 
     const { data, status } = await axios.post(
-      `${PYTHON_API_CONNECTION_URL}/convert/pln-to-ifc`,
+      `${PYTHON_API_CONNECTION_URL}/convert/archicad-to-ifc`,
       formData,
       {
         headers: {
           ...formData.getHeaders(),
         },
         responseType: 'arraybuffer',
+        timeout: 300000, // 5 minutes timeout for conversion
       },
     );
 

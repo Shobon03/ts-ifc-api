@@ -23,27 +23,29 @@
   },
   "license": "GPL-3.0-or-later",
   "devDependencies": {
-    "@biomejs/biome": "^2.2.4",
-    "@types/forge-apis": "^0.9.7",
-    "@types/node": "^24.5.2",
+    "@biomejs/biome": "^2.2.6",
+    "@types/node": "^24.7.2",
     "@types/ws": "^8.18.1",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.2",
+    "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@aps_sdk/authentication": "^1.0.0",
+    "@aps_sdk/autodesk-sdkmanager": "^1.0.0",
+    "@aps_sdk/model-derivative": "^1.2.0",
+    "@aps_sdk/oss": "^1.2.2",
     "@fastify/cors": "^11.1.0",
     "@fastify/multipart": "^9.2.1",
     "@fastify/rate-limit": "^10.3.0",
     "@fastify/swagger": "^9.5.2",
     "@fastify/websocket": "^11.2.0",
-    "@scalar/fastify-api-reference": "^1.36.1",
+    "@scalar/fastify-api-reference": "^1.38.1",
     "axios": "^1.12.2",
-    "dotenv": "^17.2.2",
+    "dotenv": "^17.2.3",
     "fastify": "^5.6.1",
     "fastify-type-provider-zod": "^6.0.0",
-    "forge-apis": "^0.9.12",
     "ws": "^8.18.3",
-    "zod": "^4.1.11"
+    "zod": "^4.1.12"
   }
 }
