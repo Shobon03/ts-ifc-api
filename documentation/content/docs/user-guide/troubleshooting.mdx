@@ -1,0 +1,576 @@
+---
+title: Solução de Problemas
+description: Resolva erros e problemas comuns do sistema
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+
+## Problemas de Upload
+
+### Arquivo não faz upload
+
+**Sintomas**:
+- Botão de upload não responde
+- Barra de progresso não aparece
+- Mensagem "Failed to upload"
+
+**Soluções**:
+
+1. **Verifique o tamanho**: Máximo 100MB
+   ```bash
+   # No Windows, clique com botão direito → Propriedades
+   # Veja o tamanho em MB
+   ```
+
+2. **Confirme o formato**:
+   - Revit: apenas `.rvt`
+   - Archicad: apenas `.pln`
+   - IFC: apenas `.ifc`
+
+3. **Teste a conexão**: Recarregue a página (F5)
+
+4. **Limpe o cache do navegador**:
+   - Chrome: Ctrl+Shift+Del
+   - Firefox: Ctrl+Shift+Del
+   - Edge: Ctrl+Shift+Del
+
+5. **Tente outro navegador**: Chrome, Firefox ou Edge
+
+### Upload muito lento
+
+**Causas**:
+- Conexão de internet lenta
+- Arquivo muito grande
+- Servidor ocupado
+
+**Soluções**:
+- Aguarde pacientemente (pode demorar vários minutos)
+- Use conexão mais rápida se disponível
+- Reduza tamanho do arquivo:
+  - Remova views e sheets desnecessários
+  - Purgue elementos não utilizados
+  - Exporte apenas parte do modelo
+
+### Erro "File too large"
+
+**Solução**: Arquivo excede 100MB
+
+1. **Otimize o modelo**:
+   - Revit: Manage → Purge Unused
+   - Archicad: File → File Special → Compact Project
+
+2. **Divida o projeto**:
+   - Separe em múltiplos arquivos
+   - Converta cada parte separadamente
+
+3. **Remova elementos pesados**:
+   - Topografia detalhada
+   - Vegetação complexa
+   - Entorno desnecessário
+
+---
+
+## Problemas de Conversão
+
+### Conversão trava ou não inicia
+
+**Sintomas**:
+- Barra de progresso para em algum ponto
+- Nenhuma atualização por vários minutos
+- Mensagem de timeout
+
+**Soluções**:
+
+1. **Aguarde pelo menos 10 minutos**: Arquivos grandes demoram
+
+2. **Verifique status WebSocket**:
+   - Deve estar 🟢 Verde (Connected)
+   - Se 🔴 Vermelho: problema de conexão
+
+3. **Recarregue e tente novamente**:
+   ```typescript
+   F5 ou Ctrl+R para recarregar
+   Selecione arquivo novamente
+   Clique em Convert
+   ```
+
+4. **Verifique o arquivo original**:
+   - Abra no software nativo
+   - Salve novamente
+   - Tente reconverter
+
+### Erro "Conversion failed"
+
+**Causas possíveis**:
+
+#### Para Revit → IFC
+
+```typescript
+// Problemas comuns com Forge
+{
+  "Credenciais inválidas": "Forge API keys expiradas",
+  "Modelo corrupto": "Arquivo .rvt com erros",
+  "Versão incompatível": "Revit muito antigo (< 2018)",
+  "Timeout": "Arquivo muito complexo"
+}
+```
+
+**Soluções**:
+1. Verifique credenciais Forge (admin)
+2. Abra e salve novamente no Revit
+3. Use Revit 2018 ou superior
+4. Simplifique o modelo
+
+#### Para Archicad → IFC
+
+```typescript
+// Problemas com plugin Archicad
+{
+  "Servidor Python offline": "Serviço não está rodando",
+  "Archicad não instalado": "Falta software no servidor",
+  "Plugin não carregado": "Plugin não inicializou",
+  "Arquivo .pln corrupto": "Modelo com erros"
+}
+```
+
+**Soluções**:
+1. Verifique status do servidor Python (admin)
+2. Confirme Archicad instalado (admin)
+3. Reinicie plugin Archicad (admin)
+4. Teste arquivo no Archicad primeiro
+
+#### Para IFC → Revit
+
+```typescript
+// Problemas com plugin Revit
+{
+  "WebSocket desconectado": "Plugin não está ativo",
+  "Revit fechado": "Software não está rodando",
+  "IFC inválido": "Arquivo IFC com erros",
+  "Template incompatível": "Template Revit incorreto"
+}
+```
+
+**Soluções**:
+1. Verifique 🟢 Status WebSocket conectado
+2. Inicie Revit com plugin (admin)
+3. Valide IFC antes de converter
+4. Use template padrão Revit
+
+### Conversão completa mas arquivo não baixa
+
+**Sintomas**:
+- Progresso chega em 100%
+- Mensagem de sucesso
+- Mas download não inicia
+
+**Soluções**:
+
+1. **Verifique bloqueio de downloads**:
+   - Chrome: ícone de download na barra de endereço
+   - Clique e permita downloads
+
+2. **Espaço em disco**:
+   - Verifique se há espaço na pasta Downloads
+   - Libere espaço se necessário
+
+3. **Pasta de downloads**:
+   - Verifique configurações do navegador
+   - Confirme caminho da pasta
+
+4. **Tente baixar manualmente**:
+   - Alguns navegadores mostram link
+   - Clique com botão direito → Salvar como
+
+---
+
+## Problemas de WebSocket
+
+### Status sempre vermelho (Disconnected)
+
+**Causas**:
+- Plugin não está rodando
+- Firewall bloqueando WebSocket
+- Porta incorreta
+
+**Soluções**:
+
+1. **Verifique plugin ativo**:
+   - Revit: deve ter janela do plugin aberta
+   - Plugin deve mostrar "WebSocket Server Running on port 8080"
+
+2. **Firewall**:
+   - Windows: permitir porta 8080
+   - Antivírus: adicionar exceção
+
+3. **Porta em uso**:
+   - Outro programa usando porta 8080
+   - Feche outros aplicativos
+   - Ou configure porta diferente
+
+4. **Reinicie o plugin**:
+   - Feche Revit
+   - Abra novamente
+   - Carregue plugin
+
+### Conexão cai durante conversão
+
+**Sintomas**:
+- Começa conectado (🟢)
+- Durante conversão vira vermelho (🔴)
+- Conversão falha
+
+**Soluções**:
+
+1. **Conexão de rede**:
+   - Verifique se internet está estável
+   - Use conexão cabeada se possível
+   - Evite WiFi instável
+
+2. **Timeout**:
+   - Plugin pode ter travado
+   - Reinicie Revit e plugin
+   - Tente arquivo menor primeiro
+
+3. **Configurações de energia**:
+   - Desative modo economia (notebook)
+   - Evite hibernação durante conversão
+
+---
+
+## Problemas de Validação
+
+### Validação reporta muitos erros
+
+**Cenário**: IFC gerado tem centenas de erros
+
+**Análise**:
+
+1. **Separe por tipo**:
+   - Erros críticos (Syntax/Schema): DEVEM ser corrigidos
+   - Avisos (Warnings): podem ser aceitáveis
+
+2. **Verifique fonte**:
+   - Se IFC gerado pelo sistema: bug possível
+   - Se IFC recebido de terceiros: problema na exportação deles
+
+**Ações**:
+
+Para IFC gerado pelo sistema:
+```typescript
+workflow = {
+  step1: "Documente todos os erros",
+  step2: "Teste modelo original no BIM",
+  step3: "Se original OK: reporte bug com detalhes",
+  step4: "Se original tem erro: corrija lá e reexporte"
+}
+```
+
+Para IFC recebido:
+```typescript
+workflow = {
+  step1: "Gere relatório de validação",
+  step2: "Envie para quem gerou o IFC",
+  step3: "Solicite correção e reexportação",
+  step4: "Valide novamente após receber corrigido"
+}
+```
+
+### Arquivo válido mas não abre no software
+
+**Paradoxo**: Validador diz "✅ Valid" mas software BIM não abre
+
+**Explicação**:
+- Validação verifica conformidade IFC
+- Software pode ter requisitos extras
+- Ou bugs no importador do software
+
+**Soluções**:
+
+1. **Verifique versão schema**:
+   ```typescript
+   // Alguns softwares só suportam schemas específicos
+   softwareCompatibility = {
+     "Software A": "IFC2x3 somente",
+     "Software B": "IFC4 preferido",
+     "Software C": "IFC2x3 e IFC4"
+   }
+   ```
+
+2. **Tente diferentes MVDs**:
+   - Coordination View 2.0
+   - Reference View
+   - Design Transfer View
+
+3. **Use conversor intermediário**:
+   - IfcOpenShell
+   - SimpleBIM
+   - Solibri
+
+4. **Reporte ao desenvolvedor do software BIM**:
+   - IFC válido DEVE abrir
+   - Se não abre, é bug do software
+
+---
+
+## Problemas de Performance
+
+### Sistema muito lento
+
+**Sintomas**:
+- Interface trava
+- Ações demoram muito
+- Navegador congelando
+
+**Soluções**:
+
+1. **Feche outras abas**: Libere memória RAM
+
+2. **Use navegador moderno atualizado**:
+   - Chrome/Edge versão mais recente
+   - Firefox atualizado
+
+3. **Desative extensões**:
+   - Modo anônimo/privado
+   - Ou desabilite extensões temporariamente
+
+4. **Limpe cache**:
+   ```bash
+   Chrome: chrome://settings/clearBrowserData
+   Firefox: about:preferences#privacy
+   ```
+
+5. **Aumente recursos do computador**:
+   - Feche programas desnecessários
+   - Reinicie computador
+   - Considere mais RAM se persistir
+
+---
+
+## Problemas Específicos do Plugin
+
+### Plugin Revit não carrega
+
+**Sintomas**:
+- Revit abre normalmente
+- Plugin não aparece
+- WebSocket não conecta
+
+**Soluções**:
+
+1. **Verifique instalação**:
+   ```
+   C:\ProgramData\Autodesk\Revit\Addins\2025\
+   Deve ter: IfcToRevitConverter.addin
+   ```
+
+2. **Permissões**:
+   - Botão direito no .dll → Propriedades
+   - Desbloquear se houver aviso de segurança
+
+3. **Logs do Revit**:
+   ```
+   %APPDATA%\Autodesk\Revit\Autodesk Revit 2025\Journals\
+   Procure por erros relacionados ao plugin
+   ```
+
+4. **Reinstale plugin**:
+   - Copie novamente arquivos
+   - Reinicie Revit
+
+### Plugin Archicad não funciona
+
+**Sintomas**:
+- Archicad abre
+- Menu do plugin não aparece
+- Conversões falham
+
+**Soluções**:
+
+1. **Verifique API DevKit**:
+   ```
+   C:\Program Files\Graphisoft\API Development Kit 28.4001\
+   Deve existir e estar completo
+   ```
+
+2. **Compilação**:
+   - Plugin deve ser compilado para Archicad 28.4
+   - Versões diferentes não funcionam
+
+3. **Logs Python**:
+   ```bash
+   # No servidor, verifique logs
+   cd backend/python
+   tail -f logs/archicad_plugin.log
+   ```
+
+4. **Reinstale Archicad** (último recurso):
+   - Desinstale completamente
+   - Reinstale versão 28.4
+   - Reinstale plugin
+
+---
+
+## Mensagens de Erro Específicas
+
+### "CORS error"
+
+**Causa**: Problema de configuração do servidor
+
+**Solução**: Admin deve verificar:
+```typescript
+// backend/node/src/app.ts
+fastify.register(cors, {
+  origin: '*', // ou domínio específico
+  credentials: true
+})
+```
+
+### "Rate limit exceeded"
+
+**Causa**: Muitas requisições em pouco tempo
+
+**Solução**:
+- Aguarde 1 minuto
+- Não faça múltiplos uploads simultâneos
+- Admin pode ajustar limite se legítimo
+
+### "Invalid file format"
+
+**Causa**: Arquivo não é do tipo esperado
+
+**Solução**:
+- Verifique extensão do arquivo
+- Confirme que não está renomeado (ex: .txt renomeado para .rvt)
+- Use arquivo genuíno do software BIM
+
+### "Authentication failed" (Forge)
+
+**Causa**: Credenciais Forge inválidas
+
+**Solução Admin**:
+```typescript
+// Verificar variáveis de ambiente
+process.env.FORGE_CLIENT_ID
+process.env.FORGE_CLIENT_SECRET
+// Devem estar corretas e ativas
+```
+
+---
+
+## Checklist de Debug
+
+Quando algo não funciona, siga esta ordem:
+
+<Steps>
+
+<Step>
+
+### 1. Verificações Básicas
+- [ ] Internet conectada?
+- [ ] Navegador atualizado?
+- [ ] Arquivo no formato correto?
+- [ ] Tamanho < 100MB?
+
+</Step>
+
+<Step>
+
+### 2. Verificações de Interface
+- [ ] Página carregou completamente?
+- [ ] WebSocket status correto?
+- [ ] Mensagens de erro aparecem?
+- [ ] Console do navegador (F12) mostra erros?
+
+</Step>
+
+<Step>
+
+### 3. Verificações de Arquivo
+- [ ] Arquivo abre no software nativo?
+- [ ] Arquivo não está corrompido?
+- [ ] Sem senha/proteção?
+- [ ] Caminho sem caracteres especiais?
+
+</Step>
+
+<Step>
+
+### 4. Tentativas de Resolução
+- [ ] Recarregar página (F5)
+- [ ] Limpar cache
+- [ ] Tentar outro navegador
+- [ ] Tentar arquivo diferente
+- [ ] Aguardar e tentar novamente
+
+</Step>
+
+<Step>
+
+### 5. Pedir Ajuda
+Se nada funcionou:
+- [ ] Anote mensagens de erro exatas
+- [ ] Tire screenshots
+- [ ] Documente passos reproduzir
+- [ ] Contate suporte com detalhes
+
+</Step>
+
+</Steps>
+
+---
+
+## Contato para Suporte
+
+Se os problemas persistirem:
+
+1. **Documentação**: Releia as seções relevantes deste guia
+
+2. **GitHub Issues**: [github.com/Shobon03/ts-ifc-api/issues](https://github.com/Shobon03/ts-ifc-api/issues)
+   - Procure issue similar
+   - Se não existir, crie nova com:
+     - Descrição do problema
+     - Passos para reproduzir
+     - Screenshots
+     - Mensagens de erro
+     - Informações do sistema
+
+3. **Desenvolvedor**: Matheus Piovezan Teixeira
+   - Email: (conforme fornecido)
+
+4. **Informações a incluir**:
+   ```typescript
+   const bugReport = {
+     sistema: "Windows/Linux/Mac + versão",
+     navegador: "Chrome/Firefox/Edge + versão",
+     tipoConversao: "Revit→IFC / Archicad→IFC / IFC→Revit",
+     tamanhoArquivo: "XX MB",
+     mensagemErro: "Texto exato do erro",
+     passos: "1. Fiz X, 2. Depois Y, 3. Erro em Z",
+     comportamentoEsperado: "Deveria ter...",
+     comportamentoReal: "Mas aconteceu..."
+   }
+   ```
+
+---
+
+## Próximos Passos
+
+<Cards>
+  <Card
+    title="Voltar ao Guia do Usuário"
+    description="Retorne à página principal do guia"
+    href="/docs/user-guide/introduction"
+  />
+  <Card
+    title="Guia do Desenvolvedor"
+    description="Aprenda a configurar e debugar o sistema"
+    href="/docs/developer-guide/architecture"
+  />
+  <Card
+    title="Configurar Plugins"
+    description="Instruções para desenvolvedores configurarem plugins"
+    href="/docs/plugins/revit"
+  />
+</Cards>

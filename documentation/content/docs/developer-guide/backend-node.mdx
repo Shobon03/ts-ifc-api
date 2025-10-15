@@ -1,0 +1,405 @@
+---
+title: Backend Node.js
+description: Estrutura e desenvolvimento da API Fastify
+---
+
+## Visão Geral
+
+O backend Node.js é construído com **Fastify 5** e oferece uma API REST completa para conversões BIM.
+
+**Tecnologias**: Fastify, TypeScript, Zod, WebSocket, Axios, Multipart
+
+**Porta padrão**: 3001
+
+## Estrutura
+
+```typescript
+backend/node/src/
+├── server.ts              // Entry point
+├── app.ts                 // Fastify configuration
+├── routes/
+│   ├── model.route.ts     // Endpoints de conversão
+│   └── health.route.ts    // Health check
+├── services/
+│   ├── forge.service.ts   // Integração Autodesk Forge
+│   ├── ifc.service.ts     // Validação IFC
+│   └── websocket.service.ts
+├── schemas/
+│   ├── model.schema.ts    // Zod schemas
+│   └── common.schema.ts
+└── types/
+    ├── forge.types.ts
+    └── ifc.types.ts
+```
+
+## Endpoints Principais
+
+### POST /api/models/generate-ifc
+
+Converte Revit (.rvt) para IFC via Autodesk Forge.
+
+```typescript
+// Handler
+export const generateIfc = async (
+  request: FastifyRequest,
+  reply: FastifyReply
+) => {
+  const file = await request.file()
+
+  if (!file) {
+    return reply.code(400).send({ error: 'No file uploaded' })
+  }
+
+  // Upload to Forge
+  const result = await forgeService.convertToIfc(file)
+
+  return reply.send({
+    success: true,
+    jobId: result.jobId,
+    urn: result.urn
+  })
+}
+```
+
+**Request**:
+```bash
+curl -X POST http://localhost:3001/api/models/generate-ifc \
+  -F "file=@model.rvt"
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "jobId": "abc123",
+  "urn": "dXJuOmFkc2sud2lwcHJvZDpmcy5maWxlOnZmLnBxUjN..."
+}
+```
+
+### POST /api/models/validate
+
+Valida arquivo IFC.
+
+```typescript
+export const validateIfc = async (
+  request: FastifyRequest,
+  reply: FastifyReply
+) => {
+  const file = await request.file()
+
+  const validation = await ifcService.validate(file)
+
+  return reply.send({
+    isValid: validation.isValid,
+    errors: validation.errors,
+    warnings: validation.warnings,
+    stats: validation.stats
+  })
+}
+```
+
+### WS /ws/conversion-progress
+
+WebSocket para atualizações em tempo real.
+
+```typescript
+fastify.get('/ws/conversion-progress', { websocket: true }, (connection, req) => {
+  connection.socket.on('message', (message) => {
+    const data = JSON.parse(message.toString())
+
+    if (data.type === 'subscribe') {
+      // Adiciona cliente à pool
+      clients.add(connection.socket)
+    }
+  })
+
+  // Envia progresso
+  setInterval(() => {
+    connection.socket.send(JSON.stringify({
+      type: 'progress',
+      percentage: currentProgress,
+      message: 'Converting...'
+    }))
+  }, 1000)
+})
+```
+
+## Serviços
+
+### ForgeService
+
+```typescript
+// services/forge.service.ts
+export class ForgeService {
+  private token: string
+
+  async authenticate() {
+    const response = await axios.post(
+      'https://developer.api.autodesk.com/authentication/v1/authenticate',
+      {
+        client_id: process.env.FORGE_CLIENT_ID,
+        client_secret: process.env.FORGE_CLIENT_SECRET,
+        grant_type: 'client_credentials',
+        scope: 'data:read data:write data:create'
+      }
+    )
+
+    this.token = response.data.access_token
+  }
+
+  async convertToIfc(file: MultipartFile) {
+    // 1. Upload
+    const objectKey = await this.uploadToForge(file)
+
+    // 2. Convert
+    const urn = Buffer.from(objectKey).toString('base64')
+    const job = await this.startConversion(urn, 'ifc')
+
+    // 3. Monitor
+    const result = await this.pollJobStatus(job.urn)
+
+    // 4. Download
+    return await this.downloadResult(result.urn)
+  }
+
+  private async pollJobStatus(urn: string): Promise<JobResult> {
+    let status = 'pending'
+
+    while (status === 'pending' || status === 'inprogress') {
+      const response = await axios.get(
+        `https://developer.api.autodesk.com/modelderivative/v2/designdata/${urn}/manifest`,
+        {
+          headers: { Authorization: `Bearer ${this.token}` }
+        }
+      )
+
+      status = response.data.status
+      await new Promise(resolve => setTimeout(resolve, 5000)) // Poll cada 5s
+    }
+
+    return response.data
+  }
+}
+```
+
+### IFCService
+
+```typescript
+// services/ifc.service.ts
+export class IFCService {
+  async validate(file: MultipartFile) {
+    const content = await file.toBuffer()
+    const text = content.toString('utf-8')
+
+    const errors: ValidationError[] = []
+    const warnings: ValidationWarning[] = []
+
+    // 1. Validação de sintaxe STEP-21
+    if (!text.startsWith('ISO-10303-21;')) {
+      errors.push({
+        type: 'SyntaxError',
+        line: 1,
+        message: 'Invalid IFC header'
+      })
+    }
+
+    // 2. Validação de schema
+    const entities = this.parseEntities(text)
+
+    for (const entity of entities) {
+      if (!this.isValidEntityType(entity.type)) {
+        errors.push({
+          type: 'SchemaError',
+          entity: entity.id,
+          message: `Unknown entity type: ${entity.type}`
+        })
+      }
+    }
+
+    // 3. Validação semântica
+    const refs = this.extractReferences(entities)
+
+    for (const ref of refs) {
+      if (!entities.has(ref.target)) {
+        errors.push({
+          type: 'SemanticError',
+          entity: ref.source,
+          message: `Broken reference to #${ref.target}`
+        })
+      }
+    }
+
+    // 4. Estatísticas
+    const stats = this.calculateStats(entities)
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      stats
+    }
+  }
+
+  private parseEntities(text: string): Map<number, Entity> {
+    const entityRegex = /#(\d+)=(\w+)\((.*?)\);/g
+    const entities = new Map()
+
+    let match
+    while ((match = entityRegex.exec(text)) !== null) {
+      entities.set(parseInt(match[1]), {
+        id: parseInt(match[1]),
+        type: match[2],
+        attributes: match[3]
+      })
+    }
+
+    return entities
+  }
+}
+```
+
+## Schemas (Zod)
+
+```typescript
+// schemas/model.schema.ts
+import { z } from 'zod'
+
+export const generateIfcSchema = {
+  consumes: ['multipart/form-data'],
+  response: {
+    200: z.object({
+      success: z.boolean(),
+      jobId: z.string(),
+      urn: z.string()
+    }),
+    400: z.object({
+      error: z.string()
+    })
+  }
+}
+
+export const validateIfcSchema = {
+  consumes: ['multipart/form-data'],
+  response: {
+    200: z.object({
+      isValid: z.boolean(),
+      errors: z.array(z.object({
+        type: z.string(),
+        line: z.number().optional(),
+        entity: z.string().optional(),
+        message: z.string()
+      })),
+      warnings: z.array(z.object({
+        type: z.string(),
+        message: z.string()
+      })),
+      stats: z.object({
+        totalEntities: z.number(),
+        uniqueTypes: z.number(),
+        breakdown: z.record(z.number())
+      })
+    })
+  }
+}
+```
+
+## Configuração
+
+```typescript
+// app.ts
+import Fastify from 'fastify'
+import cors from '@fastify/cors'
+import multipart from '@fastify/multipart'
+import rateLimit from '@fastify/rate-limit'
+import websocket from '@fastify/websocket'
+import swagger from '@fastify/swagger'
+
+export const buildApp = async () => {
+  const fastify = Fastify({
+    logger: {
+      level: process.env.LOG_LEVEL || 'info'
+    }
+  })
+
+  // CORS
+  await fastify.register(cors, {
+    origin: process.env.FRONTEND_URL || '*',
+    credentials: true
+  })
+
+  // Multipart (file upload)
+  await fastify.register(multipart, {
+    limits: {
+      fileSize: 100 * 1024 * 1024 // 100MB
+    }
+  })
+
+  // Rate limiting
+  await fastify.register(rateLimit, {
+    max: 100,
+    timeWindow: '15 minutes'
+  })
+
+  // WebSocket
+  await fastify.register(websocket)
+
+  // Swagger
+  await fastify.register(swagger, {
+    openapi: {
+      info: {
+        title: 'BIM Interoperability API',
+        version: '1.0.0'
+      },
+      servers: [
+        { url: 'http://localhost:3001' }
+      ]
+    }
+  })
+
+  // Routes
+  await fastify.register(modelRoutes, { prefix: '/api' })
+  await fastify.register(healthRoutes)
+
+  return fastify
+}
+```
+
+## Scripts de Desenvolvimento
+
+```json
+{
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "vitest",
+    "lint": "eslint src/",
+    "format": "prettier --write src/"
+  }
+}
+```
+
+## Testes
+
+```typescript
+// tests/routes/model.test.ts
+import { test } from 'vitest'
+import { buildApp } from '../src/app'
+
+test('POST /api/models/generate-ifc', async () => {
+  const app = await buildApp()
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/models/generate-ifc',
+    payload: {
+      file: createReadStream('test-model.rvt')
+    }
+  })
+
+  expect(response.statusCode).toBe(200)
+  expect(response.json()).toHaveProperty('jobId')
+})
+```
+
+Para mais detalhes, consulte [API Reference](/docs/api/endpoints).

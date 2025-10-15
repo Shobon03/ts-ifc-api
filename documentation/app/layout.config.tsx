@@ -26,13 +26,14 @@ import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
  */
 export const baseOptions: BaseLayoutProps = {
   nav: {
-    title: 'Fumadocs + Code Hike',
+    title: 'Sistema de Interoperabilidade BIM',
   },
   links: [
     {
-      text: 'Documentation',
+      text: 'Documentação',
       url: '/docs',
       active: 'nested-url',
     },
   ],
+  i18n: false,
 };

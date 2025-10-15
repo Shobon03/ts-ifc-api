@@ -1,0 +1,702 @@
+---
+title: Arquitetura do Sistema
+description: Visão completa da arquitetura e componentes do sistema
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+## Visão Geral
+
+O Sistema de Interoperabilidade BIM é construído com uma arquitetura modular baseada em **monorepo** com múltiplos workspaces npm.
+
+```mermaid
+graph TB
+    subgraph "Frontend"
+        FE[React App<br/>TanStack Router]
+    end
+
+    subgraph "Backend Node.js"
+        API[Fastify API]
+        WS[WebSocket Server]
+        FORGE[Forge Service]
+    end
+
+    subgraph "Backend Python"
+        FLASK[Flask Server]
+        AC_INT[Archicad Integration]
+    end
+
+    subgraph "External Services"
+        APS[Autodesk<br/>Platform Services]
+    end
+
+    subgraph "Plugins"
+        REV[Revit Plugin<br/>C# WebSocket]
+        ARCH[Archicad Plugin<br/>C++ Add-On]
+    end
+
+    FE <-->|HTTP/WS| API
+    API <-->|REST| FLASK
+    API <-->|HTTP| APS
+    API <-->|WebSocket| REV
+    FLASK <--> ARCH
+
+    style FE fill:#61dafb
+    style API fill:#68a063
+    style FLASK fill:#3776ab
+    style REV fill:#0696d7
+    style ARCH fill:#1c8fe5
+    style APS fill:#e91e63
+```
+
+## Estrutura do Projeto
+
+### Monorepo Organization
+
+```typescript
+ts-ifc-api/
+├── backend/
+│   ├── node/              // API REST principal
+│   │   ├── src/
+│   │   │   ├── server.ts       // Entry point
+│   │   │   ├── app.ts          // Fastify config
+│   │   │   ├── routes/         // Endpoints
+│   │   │   ├── services/       // Business logic
+│   │   │   ├── schemas/        // Zod validation
+│   │   │   └── types/          // TypeScript types
+│   │   └── package.json
+│   │
+│   └── python/            // Servidor Archicad
+│       ├── src/
+│       │   ├── server.py       // Flask app
+│       │   └── archicad/       // Integração
+│       └── requirements.txt
+│
+├── frontend/              // Interface React
+│   ├── src/
+│   │   ├── main.tsx           // Entry point
+│   │   ├── routes/            // Páginas
+│   │   ├── components/        // Componentes
+│   │   └── hooks/             // Custom hooks
+│   └── package.json
+│
+├── plugins/               // Plugins BIM
+│   ├── revit/                 // C# Plugin
+│   │   └── IfcToRevitConverter/
+│   │       ├── IfcToRevitConverter.cs
+│   │       ├── WebSocketServer.cs
+│   │       └── *.csproj
+│   │
+│   └── archicad/              // C++ Plugin
+│       └── ArchiCAD-IFC-Plugin/
+│           ├── CMakeLists.txt
+│           └── src/
+│
+├── documentation/         // Fumadocs + Code Hike
+│   ├── content/docs/
+│   └── package.json
+│
+└── package.json          // Root workspace
+```
+
+## Componentes Principais
+
+### 1. Frontend (React + TanStack)
+
+**Tecnologias**:
+```json
+{
+  "react": "19.1.1",
+  "tanstack-router": "1.132.7",
+  "tanstack-query": "5.90.2",
+  "tailwindcss": "4.1.13",
+  "vite": "7.1.7"
+}
+```
+
+**Responsabilidades**:
+- Interface do usuário
+- Upload de arquivos
+- Visualização de progresso
+- Cliente WebSocket
+- Gerenciamento de estado
+
+**Fluxo de Dados**:
+```typescript
+// Exemplo de conversão Revit→IFC
+const ConversionFlow = () => {
+  // 1. Usuário seleciona arquivo
+  const [file, setFile] = useState<File>()
+
+  // 2. Upload via fetch
+  const upload = async () => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch('/api/models/generate-ifc', {
+      method: 'POST',
+      body: formData
+    })
+  }
+
+  // 3. WebSocket para progresso
+  const ws = useWebSocket('/ws/conversion-progress')
+  ws.on('progress', (data) => {
+    setProgress(data.percentage)
+  })
+
+  // 4. Download resultado
+  ws.on('completed', (data) => {
+    downloadFile(data.fileUrl)
+  })
+}
+```
+
+**Rotas Principais**:
+- `/` - Landing page
+- `/ifc-conversion` - Revit → IFC
+- `/archicad-conversion` - Archicad → IFC
+- `/model-transformation` - IFC → Revit
+- `/conversion` - Interface genérica
+- `/websocket-demo` - Demonstração WS
+
+### 2. Backend Node.js (Fastify)
+
+**Tecnologias**:
+```json
+{
+  "fastify": "5.6.1",
+  "typescript": "5.9.2",
+  "zod": "^4.0.17",
+  "@fastify/multipart": "9.0.3",
+  "@fastify/websocket": "12.1.0",
+  "@fastify/cors": "10.2.0",
+  "@fastify/rate-limit": "10.2.0",
+  "axios": "^1.9.1"
+}
+```
+
+**Arquitetura em Camadas**:
+
+```typescript
+// 1. Routes Layer - Define endpoints
+// backend/node/src/routes/model.route.ts
+export const modelRoutes = async (fastify: FastifyInstance) => {
+  fastify.post('/models/generate-ifc', {
+    schema: generateIfcSchema,
+    handler: async (request, reply) => {
+      const file = await request.file()
+      const result = await forgeService.convertToIfc(file)
+      return reply.send(result)
+    }
+  })
+}
+
+// 2. Services Layer - Business logic
+// backend/node/src/services/forge.service.ts
+export class ForgeService {
+  async convertToIfc(file: MultipartFile) {
+    // Upload to Forge
+    const urn = await this.uploadToForge(file)
+
+    // Start conversion job
+    const job = await this.startConversion(urn, 'ifc')
+
+    // Monitor progress
+    const result = await this.monitorJob(job.id)
+
+    // Download result
+    return await this.downloadResult(result.output)
+  }
+}
+
+// 3. Schemas Layer - Validation
+// backend/node/src/schemas/model.schema.ts
+export const generateIfcSchema = {
+  consumes: ['multipart/form-data'],
+  response: {
+    200: Type.Object({
+      success: Type.Boolean(),
+      fileUrl: Type.String(),
+      jobId: Type.String()
+    })
+  }
+}
+```
+
+**Plugins Fastify Registrados**:
+
+```typescript
+// backend/node/src/app.ts
+export const buildApp = async () => {
+  const fastify = Fastify({ logger: true })
+
+  // CORS para frontend
+  await fastify.register(cors, {
+    origin: process.env.FRONTEND_URL || '*'
+  })
+
+  // Upload de arquivos
+  await fastify.register(multipart, {
+    limits: {
+      fileSize: 100 * 1024 * 1024 // 100MB
+    }
+  })
+
+  // Rate limiting
+  await fastify.register(rateLimit, {
+    max: 100,
+    timeWindow: '15 minutes'
+  })
+
+  // WebSocket
+  await fastify.register(websocket)
+
+  // Swagger docs
+  await fastify.register(swagger, {
+    openapi: {
+      info: {
+        title: 'BIM Interoperability API',
+        version: '1.0.0'
+      }
+    }
+  })
+
+  // Routes
+  await fastify.register(modelRoutes, { prefix: '/api' })
+
+  return fastify
+}
+```
+
+### 3. Backend Python (Flask)
+
+**Tecnologias**:
+```txt
+Flask==3.1.2
+archicad==28.3000
+python-dotenv==1.0.0
+requests==2.32.0
+```
+
+**Responsabilidades**:
+- Interface com Archicad API
+- Processar conversões .pln → .ifc
+- Comunicação com plugin C++ Archicad
+- Proxy entre Node.js e Archicad
+
+**Estrutura**:
+```python
+# backend/python/src/server.py
+from flask import Flask, request, jsonify
+from archicad import ACConnection
+
+app = Flask(__name__)
+
+@app.route('/convert/archicad-to-ifc', methods=['POST'])
+def convert_archicad():
+    # Recebe arquivo .pln do Node.js
+    file = request.files['file']
+    file.save('/tmp/input.pln')
+
+    # Conecta ao Archicad
+    conn = ACConnection.connect()
+
+    # Carrega projeto
+    conn.commands.OpenProject('/tmp/input.pln')
+
+    # Exporta IFC via plugin
+    conn.commands.ExportIFC('/tmp/output.ifc', {
+        'version': 'IFC2x3',
+        'coordSystem': 'internal'
+    })
+
+    # Retorna IFC
+    return send_file('/tmp/output.ifc')
+```
+
+<Callout type="warn">
+  O servidor Python está em desenvolvimento básico. Integração completa com plugin Archicad ainda não está implementada.
+</Callout>
+
+### 4. Plugins Nativos
+
+#### Plugin Revit (C# - 95% completo)
+
+**Arquitetura**:
+```csharp
+// plugins/revit/IfcToRevitConverter/IfcToRevitConverter.cs
+
+namespace IfcToRevitConverter
+{
+    // 1. External Command - Entry point
+    [Transaction(TransactionMode.Manual)]
+    public class IfcConverterCommand : IExternalCommand
+    {
+        public Result Execute(
+            ExternalCommandData commandData,
+            ref string message,
+            ElementSet elements)
+        {
+            // Inicia servidor WebSocket
+            var server = new WebSocketServer(8080);
+            server.Start();
+
+            // Mostra janela de status
+            var statusWindow = new StatusWindow();
+            statusWindow.Show();
+
+            return Result.Succeeded;
+        }
+    }
+
+    // 2. WebSocket Server
+    public class WebSocketServer
+    {
+        private WebSocketSharp.Server.WebSocketServer _server;
+
+        public void Start()
+        {
+            _server = new WebSocketSharp.Server
+                .WebSocketServer($"ws://localhost:{_port}");
+
+            _server.AddWebSocketService<IfcConverterService>(
+                "/ifc-converter"
+            );
+
+            _server.Start();
+        }
+    }
+
+    // 3. Conversion Service
+    public class IfcConverterService : WebSocketBehavior
+    {
+        protected override void OnMessage(MessageEventArgs e)
+        {
+            var command = JsonConvert
+                .DeserializeObject<Command>(e.Data);
+
+            switch (command.Type)
+            {
+                case "start_conversion":
+                    HandleConversion(command.Data);
+                    break;
+                case "get_status":
+                    SendStatus();
+                    break;
+                case "cancel_job":
+                    CancelConversion();
+                    break;
+            }
+        }
+
+        private void HandleConversion(ConversionData data)
+        {
+            // Usa ExternalEvent para thread safety
+            _externalEvent.Raise();
+        }
+    }
+
+    // 4. External Event Handler
+    public class ConversionEventHandler : IExternalEventHandler
+    {
+        public void Execute(UIApplication app)
+        {
+            // Acessa API do Revit de forma thread-safe
+            Document doc = app.ActiveUIDocument.Document;
+
+            using (Transaction trans = new Transaction(doc))
+            {
+                trans.Start("Import IFC");
+
+                // Importa IFC
+                var options = new IFCImportOptions();
+                doc.Import(_ifcPath, options, doc.ActiveView);
+
+                trans.Commit();
+            }
+
+            // Notifica sucesso via WebSocket
+            NotifyCompletion();
+        }
+    }
+}
+```
+
+**Comandos Suportados**:
+```typescript
+type RevitPluginCommands = {
+  start_conversion: {
+    input_path: string
+    output_path: string
+    options?: {
+      import_mode?: 'link' | 'import'
+      positioning?: 'origin' | 'shared' | 'site'
+    }
+  }
+  get_status: {}
+  cancel_job: { job_id: string }
+  update_path: { new_path: string }
+  ping: {}
+}
+```
+
+#### Plugin Archicad (C++ - 65% completo)
+
+**Arquitetura**:
+```cpp
+// plugins/archicad/ArchiCAD-IFC-Plugin/src/Main.cpp
+
+#include "ACAPinc.h"
+#include "IFCExport.h"
+
+// 1. Inicialização do plugin
+API_AddonType __ACDLL_CALL CheckEnvironment(
+    API_EnvirParams* envir)
+{
+    envir->serverInfo->AddOnDesc = "IFC Converter Plugin";
+    return APIAddon_Normal;
+}
+
+// 2. Registro de comandos no menu
+GSErrCode __ACDLL_CALL RegisterInterface()
+{
+    GSErrCode err = ACAPI_Register_Menu(
+        32500,  // Menu ID
+        0,
+        MenuCode_UserDef,
+        MenuFlag_Default
+    );
+
+    return err;
+}
+
+// 3. Handler de comandos
+GSErrCode __ACDLL_CALL MenuCommandHandler(
+    const API_MenuParams* menuParams)
+{
+    switch (menuParams->menuItemRef.menuResID) {
+        case 32500:  // Export IFC
+            return ExportIFC();
+        default:
+            break;
+    }
+    return NoError;
+}
+
+// 4. Exportação IFC
+GSErrCode ExportIFC()
+{
+    // Configurações de exportação
+    API_IFCTranslatorPars pars;
+    BNZeroMemory(&pars, sizeof(pars));
+
+    pars.version = API_IFCVersion_2x3;
+    pars.filePath = "/output/model.ifc";
+
+    // Exporta
+    GSErrCode err = ACAPI_Automate(
+        APIDo_SaveID,
+        &pars,
+        nullptr
+    );
+
+    return err;
+}
+```
+
+<Callout type="warn" title="Em Desenvolvimento">
+  Plugin Archicad falta:
+  - ❌ Servidor WebSocket (como Revit)
+  - ❌ Comunicação bidirecional com backend
+  - ❌ Feedback de progresso detalhado
+  - ❌ Importação IFC → PLN
+
+  Implementado:
+  - ✅ Integração básica com API Archicad
+  - ✅ Exportação PLN → IFC
+  - ✅ Menu no Archicad
+  - ✅ CMake build system
+</Callout>
+
+### 5. Serviços Externos
+
+#### Autodesk Forge (APS)
+
+**Fluxo de Conversão**:
+```typescript
+// backend/node/src/services/forge.service.ts
+
+class ForgeService {
+  // 1. Autenticação
+  async authenticate() {
+    const response = await axios.post(
+      'https://developer.api.autodesk.com/authentication/v1/authenticate',
+      {
+        client_id: process.env.FORGE_CLIENT_ID,
+        client_secret: process.env.FORGE_CLIENT_SECRET,
+        grant_type: 'client_credentials',
+        scope: 'data:read data:write data:create bucket:create bucket:read'
+      }
+    )
+    return response.data.access_token
+  }
+
+  // 2. Upload para bucket
+  async uploadFile(file: Buffer, filename: string) {
+    const bucket = 'bim-interop-bucket'
+    const objectKey = `${Date.now()}-${filename}`
+
+    await axios.put(
+      `https://developer.api.autodesk.com/oss/v2/buckets/${bucket}/objects/${objectKey}`,
+      file,
+      {
+        headers: {
+          'Authorization': `Bearer ${this.token}`,
+          'Content-Type': 'application/octet-stream'
+        }
+      }
+    )
+
+    return objectKey
+  }
+
+  // 3. Converter para IFC
+  async convertToIfc(objectKey: string) {
+    const urn = Buffer.from(objectKey).toString('base64')
+
+    const response = await axios.post(
+      'https://developer.api.autodesk.com/modelderivative/v2/designdata/job',
+      {
+        input: { urn },
+        output: {
+          formats: [{ type: 'ifc' }]
+        }
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${this.token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+
+    return response.data.urn
+  }
+
+  // 4. Monitorar progresso
+  async getProgress(urn: string) {
+    const response = await axios.get(
+      `https://developer.api.autodesk.com/modelderivative/v2/designdata/${urn}/manifest`,
+      {
+        headers: {
+          'Authorization': `Bearer ${this.token}`
+        }
+      }
+    )
+
+    return response.data.progress // 0-100%
+  }
+
+  // 5. Download resultado
+  async downloadIfc(urn: string) {
+    const response = await axios.get(
+      `https://developer.api.autodesk.com/derivativeservice/v2/derivatives/${urn}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${this.token}`
+        },
+        responseType: 'arraybuffer'
+      }
+    )
+
+    return response.data
+  }
+}
+```
+
+## Comunicação Entre Componentes
+
+### Frontend ↔ Backend Node.js
+
+```typescript
+// HTTP REST
+fetch('/api/models/generate-ifc', {
+  method: 'POST',
+  body: formData
+})
+
+// WebSocket
+const ws = new WebSocket('ws://localhost:3001/ws/conversion')
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data)
+  console.log('Progress:', data.percentage)
+}
+```
+
+### Backend Node.js ↔ Backend Python
+
+```typescript
+// HTTP Request
+const response = await axios.post(
+  'http://localhost:5000/convert/archicad-to-ifc',
+  formData,
+  {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }
+)
+```
+
+### Backend Node.js ↔ Plugin Revit
+
+```typescript
+// WebSocket bidirecional
+const ws = new WebSocket('ws://localhost:8080/ifc-converter')
+
+// Enviar comando
+ws.send(JSON.stringify({
+  command: 'start_conversion',
+  data: {
+    input_path: 'C:\\temp\\model.ifc',
+    output_path: 'C:\\output\\model.rvt'
+  }
+}))
+
+// Receber progresso
+ws.onmessage = (event) => {
+  const response = JSON.parse(event.data)
+  console.log(response.progress) // 0-100
+}
+```
+
+### Backend Python ↔ Plugin Archicad
+
+```python
+# Atualmente: HTTP/Python API
+from archicad import ACConnection
+
+conn = ACConnection.connect()
+result = conn.commands.ExportIFC(path, options)
+
+# Futuro: WebSocket (como Revit)
+```
+
+## Próximas Seções
+
+<Cards>
+  <Card
+    title="Setup do Ambiente"
+    description="Como configurar o projeto localmente"
+    href="/docs/developer-guide/setup"
+  />
+  <Card
+    title="Backend Node.js"
+    description="Detalhes do servidor Fastify"
+    href="/docs/developer-guide/backend-node"
+  />
+  <Card
+    title="Plugins"
+    description="Como compilar e instalar plugins"
+    href="/docs/plugins/revit"
+  />
+</Cards>

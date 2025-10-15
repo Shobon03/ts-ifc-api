@@ -17,10 +17,10 @@
 
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import {
-  DocsBody,
-  DocsDescription,
-  DocsPage,
-  DocsTitle,
+    DocsBody,
+    DocsDescription,
+    DocsPage,
+    DocsTitle,
 } from 'fumadocs-ui/page';
 import { notFound } from 'next/navigation';
 import { Code } from '@/components/code';
@@ -36,7 +36,18 @@ export default async function Page(props: {
   const MDX = page.data.body;
 
   return (
-    <DocsPage toc={page.data.toc} full={page.data.full}>
+    <DocsPage 
+      toc={page.data.toc} 
+      full={page.data.full}
+      tableOfContent={{
+        enabled: page.data.toc && page.data.toc.length > 0,
+        header: (
+          <div className="text-sm font-medium text-fd-muted-foreground px-3 py-2">
+            Nesta página
+          </div>
+        ),
+      }}
+    >
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <DocsBody>

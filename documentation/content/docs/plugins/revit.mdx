@@ -1,0 +1,472 @@
+---
+title: Plugin Revit
+description: Compilação e instalação do plugin C# para Revit 2025.4
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+
+## Requisitos
+
+<Callout title="Windows Obrigatório">
+  Revit só executa no Windows. Não tente compilar em Linux/Mac.
+</Callout>
+
+- **Revit**: 2025.4
+- **Visual Studio**: 2022 (Community, Professional ou Enterprise)
+- **.NET**: SDK 8.0
+- **Revit API**: Incluída na instalação do Revit
+
+## Estrutura do Plugin
+
+```csharp
+plugins/revit/IfcToRevitConverter/
+├── IfcToRevitConverter.cs      // External Command principal
+├── WebSocketServer.cs          // Servidor WebSocket
+├── ConversionHandler.cs        // Lógica de conversão
+├── StatusWindow.xaml           // Interface de status
+├── StatusWindow.xaml.cs        // Code-behind
+├── Models/
+│   ├── Command.cs              // Modelos de comando
+│   └── ConversionJob.cs        // Estado de conversão
+├── IfcToRevitConverter.csproj  // Projeto Visual Studio
+└── IfcToRevitConverter.addin   // Manifesto do add-in
+```
+
+## Compilação
+
+<Steps>
+
+<Step>
+
+### Abra o Projeto
+
+```bash
+cd plugins/revit/IfcToRevitConverter
+# Clique duas vezes em IfcToRevitConverter.sln
+# Ou: start IfcToRevitConverter.sln
+```
+
+</Step>
+
+<Step>
+
+### Configure Referências
+
+Verifique se as referências do Revit API estão corretas:
+
+```xml
+<!-- IfcToRevitConverter.csproj -->
+<ItemGroup>
+  <Reference Include="RevitAPI">
+    <HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll</HintPath>
+    <Private>False</Private>
+  </Reference>
+  <Reference Include="RevitAPIUI">
+    <HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPIUI.dll</HintPath>
+    <Private>False</Private>
+  </Reference>
+</ItemGroup>
+```
+
+</Step>
+
+<Step>
+
+### Instale Dependências NuGet
+
+```bash
+# No Package Manager Console (VS)
+Install-Package Newtonsoft.Json
+Install-Package WebSocketSharp-netstandard
+```
+
+Ou via `.csproj`:
+```xml
+<ItemGroup>
+  <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  <PackageReference Include="WebSocketSharp-netstandard" Version="1.0.1" />
+</ItemGroup>
+```
+
+</Step>
+
+<Step>
+
+### Compile
+
+```bash
+# Via Visual Studio: Build → Build Solution (Ctrl+Shift+B)
+
+# Ou via linha de comando:
+msbuild IfcToRevitConverter.sln /p:Configuration=Release
+```
+
+**Saída**:
+```
+bin/Release/IfcToRevitConverter.dll
+bin/Release/Newtonsoft.Json.dll
+bin/Release/WebSocketSharp.dll
+```
+
+</Step>
+
+</Steps>
+
+## Instalação
+
+<Steps>
+
+<Step>
+
+### Localize a Pasta de Add-ins
+
+```bash
+C:\ProgramData\Autodesk\Revit\Addins\2025\
+```
+
+</Step>
+
+<Step>
+
+### Copie Arquivos
+
+```bash
+# Copie DLLs compiladas
+copy bin\Release\IfcToRevitConverter.dll "C:\ProgramData\Autodesk\Revit\Addins\2025\"
+copy bin\Release\Newtonsoft.Json.dll "C:\ProgramData\Autodesk\Revit\Addins\2025\"
+copy bin\Release\WebSocketSharp.dll "C:\ProgramData\Autodesk\Revit\Addins\2025\"
+
+# Copie manifesto
+copy IfcToRevitConverter.addin "C:\ProgramData\Autodesk\Revit\Addins\2025\"
+```
+
+</Step>
+
+<Step>
+
+### Verifique Manifesto
+
+```xml
+<!-- IfcToRevitConverter.addin -->
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Command">
+    <Name>IFC to Revit Converter</Name>
+    <Assembly>IfcToRevitConverter.dll</Assembly>
+    <AddInId>A7C1D1E2-F3B4-4C5D-8E6F-1A2B3C4D5E6F</AddInId>
+    <FullClassName>IfcToRevitConverter.IfcConverterCommand</FullClassName>
+    <VendorId>TCCMPT</VendorId>
+    <VendorDescription>Matheus Piovezan Teixeira</VendorDescription>
+  </AddIn>
+</RevitAddIns>
+```
+
+</Step>
+
+<Step>
+
+### Desbloqueie DLLs (Importante!)
+
+```powershell
+# Execute para cada DLL
+Unblock-File "C:\ProgramData\Autodesk\Revit\Addins\2025\IfcToRevitConverter.dll"
+Unblock-File "C:\ProgramData\Autodesk\Revit\Addins\2025\Newtonsoft.Json.dll"
+Unblock-File "C:\ProgramData\Autodesk\Revit\Addins\2025\WebSocketSharp.dll"
+```
+
+<Callout type="warn">
+  Windows bloqueia DLLs baixadas da internet. Sem desbloquear, o plugin não carregará!
+</Callout>
+
+</Step>
+
+</Steps>
+
+## Uso
+
+<Steps>
+
+<Step>
+
+### Inicie o Revit
+
+```bash
+# Abra Revit 2025
+"C:\Program Files\Autodesk\Revit 2025\Revit.exe"
+```
+
+</Step>
+
+<Step>
+
+### Verifique Carregamento
+
+- Plugin aparecerá na aba "Add-Ins"
+- Ou procure por "IFC Converter" no ribbon
+
+</Step>
+
+<Step>
+
+### Ative o Plugin
+
+1. Clique no botão do plugin
+2. Janela de status aparecerá
+3. Console mostrará: "WebSocket Server Started on port 8080"
+
+</Step>
+
+<Step>
+
+### Teste Conexão
+
+```bash
+# Instale wscat: npm install -g wscat
+wscat -c ws://localhost:8080/ifc-converter
+
+# Envie comando de teste
+> {"command":"ping"}
+
+# Resposta esperada
+< {"type":"pong","timestamp":1234567890}
+```
+
+</Step>
+
+</Steps>
+
+## Comandos WebSocket
+
+### start_conversion
+
+```json
+{
+  "command": "start_conversion",
+  "jobId": "job-123",
+  "data": {
+    "input_path": "C:\\temp\\model.ifc",
+    "output_path": "C:\\output\\model.rvt",
+    "options": {
+      "import_mode": "import",
+      "positioning": "origin"
+    }
+  }
+}
+```
+
+**Resposta**:
+```json
+{
+  "type": "conversion_started",
+  "jobId": "job-123",
+  "status": "processing"
+}
+```
+
+### get_status
+
+```json
+{
+  "command": "get_status",
+  "jobId": "job-123"
+}
+```
+
+**Resposta**:
+```json
+{
+  "type": "status",
+  "jobId": "job-123",
+  "status": "processing",
+  "progress": 45,
+  "message": "Importing elements...",
+  "details": {
+    "elementsProcessed": 450,
+    "elementsTotal": 1000,
+    "currentElement": "IFCWALL #12345"
+  }
+}
+```
+
+### cancel_job
+
+```json
+{
+  "command": "cancel_job",
+  "jobId": "job-123"
+}
+```
+
+### update_path
+
+```json
+{
+  "command": "update_path",
+  "data": {
+    "input_path": "C:\\new\\path\\model.ifc"
+  }
+}
+```
+
+## Debug
+
+### Modo Debug
+
+```bash
+# Compile em Debug
+msbuild /p:Configuration=Debug
+
+# Visual Studio attach to process
+# Debug → Attach to Process → Revit.exe
+```
+
+### Logs
+
+```csharp
+// Adicione logging no código
+System.Diagnostics.Debug.WriteLine($"Converting: {ifcPath}");
+
+// Logs aparecem em:
+// %APPDATA%\Autodesk\Revit\Autodesk Revit 2025\Journals\
+```
+
+### Erros Comuns
+
+| Erro | Causa | Solução |
+|------|-------|---------|
+| "Add-in not loaded" | DLL bloqueada | Unblock-File |
+| "Could not load file" | Referência quebrada | Verifique HintPath |
+| "Access denied" | Permissões | Execute VS como admin |
+| "Port 8080 in use" | Outro programa | Feche ou mude porta |
+
+## Desenvolvimento
+
+### Estrutura de Código
+
+```csharp
+// 1. Entry Point
+public class IfcConverterCommand : IExternalCommand
+{
+    public Result Execute(...)
+    {
+        // Inicia WebSocket
+        var server = new WebSocketServer(8080);
+        server.Start();
+        return Result.Succeeded;
+    }
+}
+
+// 2. WebSocket Handler
+public class IfcConverterService : WebSocketBehavior
+{
+    protected override void OnMessage(MessageEventArgs e)
+    {
+        var cmd = Parse(e.Data);
+        _externalEvent.Raise(); // Thread-safe!
+    }
+}
+
+// 3. Event Handler (acessa Revit API)
+public class ConversionEventHandler : IExternalEventHandler
+{
+    public void Execute(UIApplication app)
+    {
+        Document doc = app.ActiveUIDocument.Document;
+        using (Transaction trans = new Transaction(doc))
+        {
+            trans.Start("Import IFC");
+            // Operações Revit API aqui
+            trans.Commit();
+        }
+    }
+}
+```
+
+### Thread Safety
+
+<Callout type="warn" title="Importante!">
+  Revit API só pode ser acessada da thread principal. Use `ExternalEvent` para callbacks de WebSocket!
+</Callout>
+
+```csharp
+// ❌ ERRADO - Crash!
+ws.OnMessage = (msg) => {
+    doc.Import(path); // Não pode acessar de thread WS
+}
+
+// ✅ CORRETO
+ws.OnMessage = (msg) => {
+    _externalEvent.Raise(); // Agenda para thread principal
+}
+
+handler.Execute = (app) => {
+    doc.Import(path); // OK na thread principal
+}
+```
+
+## Build Automático
+
+### Script PowerShell
+
+```powershell
+# build-and-install.ps1
+$projectPath = "IfcToRevitConverter.sln"
+$addinsPath = "C:\ProgramData\Autodesk\Revit\Addins\2025\"
+
+# Build
+msbuild $projectPath /p:Configuration=Release
+
+# Copy
+Copy-Item "bin\Release\*.dll" $addinsPath -Force
+Copy-Item "*.addin" $addinsPath -Force
+
+# Unblock
+Get-ChildItem $addinsPath -Filter "*.dll" | Unblock-File
+
+Write-Host "Plugin installed successfully!"
+```
+
+### Task VSCode
+
+```json
+// .vscode/tasks.json
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build and Install Revit Plugin",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy", "Bypass",
+        "-File", "./build-and-install.ps1"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}
+```
+
+## Próximos Passos
+
+<Cards>
+  <Card
+    title="Plugin Archicad"
+    description="Configure o plugin C++ do Archicad"
+    href="/docs/plugins/archicad"
+  />
+  <Card
+    title="Backend Node.js"
+    description="Integre com a API"
+    href="/docs/developer-guide/backend-node"
+  />
+  <Card
+    title="API WebSocket"
+    description="Documentação completa do protocolo"
+    href="/docs/api/websockets"
+  />
+</Cards>

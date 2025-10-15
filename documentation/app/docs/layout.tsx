@@ -22,7 +22,19 @@ import { source } from '@/lib/source';
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
-    <DocsLayout tree={source.pageTree} {...baseOptions}>
+    <DocsLayout 
+      tree={source.pageTree} 
+      {...baseOptions}
+      i18n={false}
+      sidebar={{
+        banner: undefined,
+        footer: undefined,
+      }}
+      nav={{
+        ...baseOptions.nav,
+        transparentMode: 'top',
+      }}
+    >
       {children}
     </DocsLayout>
   );

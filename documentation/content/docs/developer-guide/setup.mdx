@@ -1,0 +1,392 @@
+---
+title: Setup do Ambiente
+description: Configure o projeto localmente para desenvolvimento
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+
+## Pré-requisitos
+
+### Software Obrigatório
+
+<Tabs items={['Windows', 'Linux/Mac']}>
+  <Tab value="Windows">
+    ```bash
+    # Node.js 22 LTS
+    winget install OpenJS.NodeJS.LTS
+
+    # Git
+    winget install Git.Git
+
+    # Python 3.13 (para backend Python)
+    winget install Python.Python.3.13
+
+    # Visual Studio Code (recomendado)
+    winget install Microsoft.VisualStudioCode
+    ```
+  </Tab>
+
+  <Tab value="Linux/Mac">
+    ```bash
+    # Node.js via nvm
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+    nvm install 22
+    nvm use 22
+
+    # Python
+    # Mac: brew install python@3.13
+    # Ubuntu: sudo apt install python3.13
+
+    # Git (geralmente já instalado)
+    git --version
+    ```
+  </Tab>
+</Tabs>
+
+### Software para Plugins (Windows Only)
+
+<Callout type="warn" title="Importante">
+  Plugins BIM só funcionam no Windows, pois Revit e Archicad não rodam em Linux/Mac.
+</Callout>
+
+**Para Plugin Revit**:
+- Revit 2025.4
+- Visual Studio 2022 (Community Edition OK)
+- .NET 8 SDK
+- Newtonsoft.Json NuGet package
+
+**Para Plugin Archicad**:
+- Archicad 28.4
+- Visual Studio 2019 (versão específica para DevKit 28)
+- API Development Kit 28.4001
+  - Instalado em: `C:\Program Files\Graphisoft\API Development Kit 28.4001\`
+- CMake 3.20+
+
+## Instalação do Projeto
+
+<Steps>
+
+<Step>
+
+### Clone o Repositório
+
+```bash
+git clone https://github.com/Shobon03/ts-ifc-api.git
+cd ts-ifc-api
+```
+
+</Step>
+
+<Step>
+
+### Instale Dependências
+
+```bash
+# Instala dependências de todos os workspaces
+npm install
+
+# Isso executará install em:
+# - backend/node
+# - frontend
+# - documentation
+```
+
+<Callout title="Workspaces npm">
+  O projeto usa npm workspaces. Um único `npm install` na raiz instala tudo.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Configure Variáveis de Ambiente
+
+#### Backend Node.js
+
+```bash
+# backend/node/.env
+PORT=3001
+NODE_ENV=development
+
+# Autodesk Forge/APS (necessário para Revit→IFC)
+FORGE_CLIENT_ID=seu_client_id_aqui
+FORGE_CLIENT_SECRET=seu_client_secret_aqui
+FORGE_BUCKET_KEY=bim-interop-bucket
+
+# URLs
+FRONTEND_URL=http://localhost:5173
+PYTHON_BACKEND_URL=http://localhost:5000
+
+# Revit Plugin WebSocket
+REVIT_WS_URL=ws://localhost:8080
+```
+
+#### Backend Python
+
+```bash
+# backend/python/.env
+FLASK_ENV=development
+FLASK_PORT=5000
+
+# Archicad
+ARCHICAD_PATH=C:\Program Files\Graphisoft\ARCHICAD 28\ARCHICAD.exe
+ARCHICAD_PORT=19723
+```
+
+#### Frontend
+
+```bash
+# frontend/.env
+VITE_API_URL=http://localhost:3001
+VITE_WS_URL=ws://localhost:3001
+```
+
+</Step>
+
+<Step>
+
+### Obtenha Credenciais Forge (Opcional)
+
+<Callout type="info">
+  Apenas necessário para conversão Revit→IFC via nuvem. Outros tipos funcionam sem Forge.
+</Callout>
+
+1. Acesse [Autodesk Platform Services](https://aps.autodesk.com/)
+2. Crie uma conta (gratuita para desenvolvimento)
+3. Crie um app
+4. Copie Client ID e Client Secret
+5. Cole no `.env` do backend Node.js
+
+</Step>
+
+</Steps>
+
+## Executando o Projeto
+
+### Modo Completo (Todos os Serviços)
+
+```bash
+# Na raiz do projeto
+npm run dev
+
+# Isso inicia:
+# - Backend Node.js (porta 3001)
+# - Backend Python (porta 5000)
+# - Frontend (porta 5173)
+# - Documentation (porta 3002)
+```
+
+### Serviços Individuais
+
+```bash
+# Apenas backend Node.js
+npm run dev:backend
+
+# Apenas backend Python
+npm run dev:python
+
+# Apenas frontend
+npm run dev:frontend
+
+# Apenas documentação
+npm run dev:documentation
+```
+
+### Com Plugins
+
+**Plugin Revit**:
+1. Compile o plugin (ver [Guia Plugin Revit](/docs/plugins/revit))
+2. Copie `.addin` e `.dll` para pasta Addins do Revit
+3. Abra Revit 2025
+4. Plugin iniciará automaticamente servidor WebSocket na porta 8080
+
+**Plugin Archicad**:
+1. Compile o plugin (ver [Guia Plugin Archicad](/docs/plugins/archicad))
+2. Copie `.apx` para pasta Add-Ons do Archicad
+3. Abra Archicad 28
+4. Backend Python poderá se conectar
+
+## Verificando a Instalação
+
+### Teste Backend Node.js
+
+```bash
+curl http://localhost:3001/health
+# Deve retornar: {"status":"ok"}
+
+# Teste Swagger docs
+open http://localhost:3001/documentation
+```
+
+### Teste Backend Python
+
+```bash
+curl http://localhost:5000/health
+# Deve retornar: {"status":"ok","archicad":"connected"}
+```
+
+### Teste Frontend
+
+```bash
+# Abra no navegador
+open http://localhost:5173
+
+# Deve mostrar página inicial do sistema
+```
+
+### Teste Documentação
+
+```bash
+open http://localhost:3002
+# Deve mostrar esta documentação
+```
+
+### Teste Plugin Revit
+
+```bash
+# Conecte via WebSocket
+wscat -c ws://localhost:8080/ifc-converter
+
+# Envie ping
+> {"command":"ping"}
+
+# Deve receber
+< {"type":"pong","timestamp":1234567890}
+```
+
+## Estrutura de Desenvolvimento
+
+### Scripts Disponíveis
+
+```json
+{
+  "dev": "Inicia todos os serviços em modo desenvolvimento",
+  "dev:backend": "Node.js com hot reload",
+  "dev:python": "Flask com auto-reload",
+  "dev:frontend": "Vite dev server",
+  "dev:documentation": "Next.js dev server",
+
+  "build": "Compila todos os projetos",
+  "build:backend": "TypeScript → JavaScript",
+  "build:frontend": "Vite build otimizado",
+  "build:docs": "Next.js static export",
+
+  "test": "Executa todos os testes",
+  "test:backend": "Testes backend Node.js",
+  "test:frontend": "Testes frontend",
+
+  "lint": "Verifica código em todos os workspaces",
+  "format": "Formata código com Prettier/Biome"
+}
+```
+
+### Extensões VSCode Recomendadas
+
+```json
+// .vscode/extensions.json
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "ms-python.python",
+    "ms-vscode.csharp",
+    "ms-vscode.cmake-tools",
+    "rangav.vscode-thunder-client"
+  ]
+}
+```
+
+### Configuração TypeScript
+
+```json
+// tsconfig.json (raiz)
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  },
+  "references": [
+    { "path": "./backend/node" },
+    { "path": "./frontend" },
+    { "path": "./documentation" }
+  ]
+}
+```
+
+## Troubleshooting
+
+### Erro: "Cannot find module"
+
+```bash
+# Limpe node_modules e reinstale
+rm -rf node_modules
+rm -rf backend/node/node_modules
+rm -rf frontend/node_modules
+rm -rf documentation/node_modules
+npm install
+```
+
+### Erro: "Port already in use"
+
+```bash
+# Windows
+netstat -ano | findstr :3001
+taskkill /PID <PID> /F
+
+# Linux/Mac
+lsof -ti:3001 | xargs kill -9
+```
+
+### Erro: Python backend não conecta
+
+```bash
+# Verifique se Python está instalado
+python --version
+
+# Instale dependências Python
+cd backend/python
+pip install -r requirements.txt
+
+# Execute manualmente para ver erros
+python src/server.py
+```
+
+### Erro: Plugin Revit não carrega
+
+1. Verifique logs: `%APPDATA%\Autodesk\Revit\Autodesk Revit 2025\Journals\`
+2. Confirme arquivos em: `C:\ProgramData\Autodesk\Revit\Addins\2025\`
+3. Desbloqueie DLLs (botão direito → Propriedades → Desbloquear)
+4. Recompile em modo Debug para ver erros
+
+## Próximos Passos
+
+<Cards>
+  <Card
+    title="Backend Node.js"
+    description="Entenda a API Fastify em detalhes"
+    href="/docs/developer-guide/backend-node"
+  />
+  <Card
+    title="Frontend"
+    description="Aprenda sobre a estrutura React"
+    href="/docs/developer-guide/frontend"
+  />
+  <Card
+    title="Plugin Revit"
+    description="Compile e instale o plugin Revit"
+    href="/docs/plugins/revit"
+  />
+  <Card
+    title="Plugin Archicad"
+    description="Compile e instale o plugin Archicad"
+    href="/docs/plugins/archicad"
+  />
+</Cards>

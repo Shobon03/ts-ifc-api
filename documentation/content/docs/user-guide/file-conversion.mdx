@@ -1,0 +1,539 @@
+---
+title: Conversão de Arquivos
+description: Guia completo de todos os tipos de conversão suportados
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+
+## Tipos de Conversão
+
+O sistema suporta três principais tipos de conversão:
+
+<Tabs items={['Revit → IFC', 'Archicad → IFC', 'IFC → Revit']}>
+  <Tab value="Revit → IFC">
+    Usa Autodesk Forge (nuvem) para processar arquivos
+  </Tab>
+  <Tab value="Archicad → IFC">
+    Usa plugin local do Archicad no servidor
+  </Tab>
+  <Tab value="IFC → Revit">
+    Usa plugin local do Revit no servidor
+  </Tab>
+</Tabs>
+
+---
+
+## Revit para IFC
+
+<Callout type="info">
+  Esta conversão utiliza **Autodesk Forge** (APS - Autodesk Platform Services) na nuvem, garantindo alta compatibilidade e qualidade.
+</Callout>
+
+### Processo Completo
+
+```typescript
+// Fluxo da conversão Revit → IFC
+const revitToIfcFlow = {
+  step1: "Upload do arquivo .rvt para o servidor Node.js",
+  step2: "Servidor envia para Autodesk Forge (nuvem)",
+  step3: "Forge processa e converte para IFC",
+  step4: "Servidor monitora progresso via polling",
+  step5: "Download do IFC convertido",
+  step6: "Entrega ao usuário"
+}
+```
+
+### Passo a Passo
+
+<Steps>
+
+<Step>
+
+#### Acesse a Página
+
+1. Clique em **"IFC Conversion"** no menu principal
+2. Você verá a interface de conversão com área de upload
+
+</Step>
+
+<Step>
+
+#### Selecione o Arquivo
+
+**Formatos aceitos**: `.rvt`
+
+**Requisitos**:
+- Tamanho máximo: 100MB
+- Versão: Revit 2018 ou superior (recomendado)
+- Estado: Arquivo deve abrir sem erros no Revit
+
+**Como selecionar**:
+- **Opção 1**: Clique em "Escolher arquivo" e navegue até o arquivo
+- **Opção 2**: Arraste o arquivo `.rvt` para a área de drop
+
+</Step>
+
+<Step>
+
+#### Inicie a Conversão
+
+1. Clique no botão **"Convert"** ou **"Converter"**
+2. O upload começará imediatamente
+3. Acompanhe a barra de progresso
+
+</Step>
+
+<Step>
+
+#### Acompanhe o Progresso
+
+O sistema mostra progresso detalhado:
+
+| Etapa | Progresso | Descrição | Tempo Médio |
+|-------|-----------|-----------|-------------|
+| Upload | 0-20% | Enviando para servidor | 10-30s |
+| Forge Upload | 20-30% | Enviando para nuvem Autodesk | 10-20s |
+| Conversão | 30-80% | Processando na nuvem | 1-5min |
+| Download | 80-95% | Baixando resultado | 10-30s |
+| Finalização | 95-100% | Preparando arquivo | 5-10s |
+
+**Mensagens comuns**:
+```typescript
+"Uploading file to server..."
+"Sending to Autodesk Forge..."
+"Converting to IFC (this may take a few minutes)..."
+"Downloading converted file..."
+"Conversion completed! Downloading..."
+```
+
+</Step>
+
+<Step>
+
+#### Receba o Arquivo
+
+Quando completado:
+- ✅ Arquivo `.ifc` baixado automaticamente
+- ✅ Mensagem de sucesso exibida
+- ✅ Nome do arquivo: `{original}_ifc.ifc`
+
+</Step>
+
+</Steps>
+
+### Configurações Avançadas
+
+O Forge usa configurações padrão otimizadas:
+
+```json
+{
+  "type": "ifc",
+  "advanced": {
+    "exportFileStructure": "multiple",
+    "modelGuid": "auto-generated",
+    "projectGuid": "auto-generated",
+    "schema": "IFC2x3"
+  }
+}
+```
+
+<Callout type="warn">
+  Atualmente não é possível customizar estas configurações pela interface. Para opções avançadas, consulte o desenvolvedor.
+</Callout>
+
+### Solução de Problemas
+
+**Erro: "Failed to upload to Forge"**
+- Verifique credenciais do Forge no servidor
+- Confira conexão com internet
+- Tente novamente após alguns minutos
+
+**Erro: "Conversion failed"**
+- Arquivo pode estar corrompido
+- Tente abrir no Revit primeiro
+- Salve novamente e reconverta
+
+**Erro: "File too large"**
+- Reduza tamanho do modelo
+- Remova views desnecessárias
+- Purgue elementos não utilizados
+
+---
+
+## Archicad para IFC
+
+<Callout type="info">
+  Esta conversão usa o **plugin Archicad** instalado no servidor, processando localmente.
+</Callout>
+
+### Processo Completo
+
+```typescript
+// Fluxo da conversão Archicad → IFC
+const archicadToIfcFlow = {
+  step1: "Upload do arquivo .pln para servidor Node.js",
+  step2: "Node.js envia para servidor Python",
+  step3: "Servidor Python aciona plugin Archicad",
+  step4: "Archicad abre arquivo e exporta IFC",
+  step5: "IFC retorna via Python → Node.js",
+  step6: "Entrega ao usuário"
+}
+```
+
+### Passo a Passo
+
+<Steps>
+
+<Step>
+
+#### Requisitos do Servidor
+
+<Callout type="warn" title="Importante">
+  Esta conversão requer que o servidor tenha:
+  - ✅ Archicad 28.4 instalado
+  - ✅ Plugin C++ compilado e instalado
+  - ✅ Servidor Python rodando
+  - ✅ Windows 10/11 (Archicad não roda em Linux/Mac)
+</Callout>
+
+</Step>
+
+<Step>
+
+#### Acesse a Página
+
+1. Clique em **"Archicad Conversion"** no menu
+2. Verifique se o indicador de status mostra "🟢 Connected"
+
+</Step>
+
+<Step>
+
+#### Selecione o Arquivo
+
+**Formatos aceitos**: `.pln`
+
+**Requisitos**:
+- Tamanho máximo: 100MB
+- Versão: Archicad 24 ou superior
+- Estado: Arquivo deve abrir sem erros no Archicad
+
+</Step>
+
+<Step>
+
+#### Inicie a Conversão
+
+1. Clique em **"Convert"**
+2. O sistema verificará disponibilidade do serviço Python
+3. Upload começará se tudo estiver OK
+
+</Step>
+
+<Step>
+
+#### Acompanhe o Progresso
+
+| Etapa | Progresso | Descrição | Tempo Médio |
+|-------|-----------|-----------|-------------|
+| Upload | 0-30% | Enviando para servidor | 10-40s |
+| Python Processing | 30-50% | Transferindo para Python | 5-10s |
+| Archicad Opening | 50-70% | Abrindo no Archicad | 30-60s |
+| IFC Export | 70-90% | Exportando IFC | 20-40s |
+| Return | 90-100% | Retornando arquivo | 10-20s |
+
+</Step>
+
+<Step>
+
+#### Receba o Arquivo
+
+- Arquivo `.ifc` baixado automaticamente
+- Nome geralmente: `{original}.ifc`
+
+</Step>
+
+</Steps>
+
+### Limitações Atuais
+
+<Callout type="warn" title="Plugin em Desenvolvimento (65% completo)">
+  O plugin Archicad ainda não possui:
+  - ❌ Comunicação WebSocket (usa HTTP polling)
+  - ❌ Feedback detalhado de progresso
+  - ❌ Configurações customizadas de exportação
+  - ❌ Tratamento avançado de erros
+
+  Funcionalidades disponíveis:
+  - ✅ Conversão básica .pln → .ifc
+  - ✅ Preservação de geometria e propriedades
+  - ✅ Exportação compatível com IFC 2x3
+</Callout>
+
+---
+
+## IFC para Revit
+
+<Callout type="info">
+  Esta conversão usa o **plugin Revit** instalado no servidor via WebSocket.
+</Callout>
+
+### Processo Completo
+
+```typescript
+// Fluxo da conversão IFC → Revit
+const ifcToRevitFlow = {
+  step1: "Upload do arquivo .ifc para servidor Node.js",
+  step2: "Node.js conecta via WebSocket ao plugin Revit",
+  step3: "Plugin Revit recebe comando de conversão",
+  step4: "Revit importa IFC e cria documento .rvt",
+  step5: "Plugin retorna arquivo via WebSocket",
+  step6: "Entrega ao usuário"
+}
+```
+
+### Passo a Passo
+
+<Steps>
+
+<Step>
+
+#### Requisitos do Servidor
+
+<Callout type="success" title="Plugin Completo (95%)">
+  O plugin Revit está praticamente completo e oferece:
+  - ✅ Comunicação WebSocket bidirecional
+  - ✅ Feedback de progresso em tempo real
+  - ✅ Cancelamento de conversões
+  - ✅ Interface de status integrada
+  - ✅ Tratamento robusto de erros
+</Callout>
+
+Requer:
+- Revit 2025.4 instalado
+- Plugin C# instalado
+- Revit executando com plugin ativo
+- Windows 10/11
+
+</Step>
+
+<Step>
+
+#### Acesse a Página
+
+1. Vá para **"IFC to Revit"** ou **"Model Transformation"**
+2. Verifique status WebSocket: **🟢 Connected**
+
+</Step>
+
+<Step>
+
+#### Selecione o Arquivo IFC
+
+**Formatos aceitos**: `.ifc`
+
+**Requisitos**:
+- Arquivo IFC válido (validar primeiro se possível)
+- Tamanho razoável (< 50MB recomendado para primeira vez)
+- Schema IFC 2x3 ou 4 (ambos suportados)
+
+</Step>
+
+<Step>
+
+#### Configure a Conversão
+
+O plugin Revit aceita comandos customizados via WebSocket:
+
+```json
+{
+  "command": "start_conversion",
+  "data": {
+    "input_path": "/path/to/file.ifc",
+    "output_path": "/path/to/output.rvt",
+    "options": {
+      "importMode": "link_or_import",
+      "positioning": "origin",
+      "createSeparateModel": true
+    }
+  }
+}
+```
+
+<Callout type="info">
+  Configurações avançadas geralmente são gerenciadas automaticamente pelo sistema.
+</Callout>
+
+</Step>
+
+<Step>
+
+#### Inicie a Conversão
+
+1. Clique em **"Convert"** ou **"Transform"**
+2. Plugin Revit receberá comando
+3. Janela de status aparecerá no Revit
+
+</Step>
+
+<Step>
+
+#### Acompanhe em Tempo Real
+
+O plugin Revit envia atualizações constantes via WebSocket:
+
+```typescript
+// Mensagens de progresso do plugin Revit
+interface RevitProgress {
+  status: "processing" | "completed" | "error",
+  progress: number, // 0-100
+  message: string,
+  currentStep: string,
+  details?: {
+    elementsProcessed: number,
+    elementsTotal: number,
+    currentElement: string
+  }
+}
+```
+
+**Visualização no frontend**:
+- Barra de progresso atualizada em tempo real
+- Mensagens detalhadas do que está acontecendo
+- Contagem de elementos processados
+- Possibilidade de cancelar
+
+</Step>
+
+<Step>
+
+#### Cancelar (Opcional)
+
+Se precisar interromper:
+
+1. Clique em **"Cancel"** na interface
+2. Sistema envia comando de cancelamento via WebSocket
+3. Plugin Revit interrompe processamento
+4. Arquivos temporários são limpos
+
+</Step>
+
+<Step>
+
+#### Receba o Arquivo
+
+Quando 100% completo:
+- Arquivo `.rvt` baixado automaticamente
+- Pode abrir diretamente no Revit 2025 ou superior
+
+</Step>
+
+</Steps>
+
+### Comandos WebSocket Disponíveis
+
+O plugin Revit aceita vários comandos:
+
+```typescript
+// Comandos suportados pelo plugin
+type RevitCommands =
+  | "start_conversion"  // Inicia conversão IFC → RVT
+  | "get_status"        // Consulta status atual
+  | "cancel_job"        // Cancela conversão em andamento
+  | "update_path"       // Atualiza caminhos de arquivos
+  | "ping"              // Testa conexão
+
+// Exemplo de uso
+const startConversion = {
+  command: "start_conversion",
+  jobId: "unique-id-123",
+  data: {
+    input_path: "C:\\temp\\model.ifc",
+    output_path: "C:\\output\\model.rvt"
+  }
+}
+```
+
+---
+
+## Comparação de Métodos
+
+| Característica | Revit → IFC | Archicad → IFC | IFC → Revit |
+|----------------|-------------|----------------|-------------|
+| **Processamento** | Nuvem (Forge) | Local (Python) | Local (WebSocket) |
+| **Velocidade** | Média | Lenta | Rápida |
+| **Feedback** | Polling | HTTP | Tempo Real (WS) |
+| **Cancelamento** | ❌ Não | ❌ Não | ✅ Sim |
+| **Progresso Detalhado** | ⚠️ Básico | ⚠️ Limitado | ✅ Completo |
+| **Requisitos Servidor** | Internet | Archicad + Python | Revit + Node.js |
+| **Confiabilidade** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| **Completude** | 100% | 65% | 95% |
+
+## Melhores Práticas
+
+### Antes de Converter
+
+1. **Valide o arquivo original**
+   - Abra no software nativo
+   - Corrija erros e avisos
+   - Salve versão limpa
+
+2. **Otimize o modelo**
+   - Purgue elementos não utilizados
+   - Remova views desnecessárias
+   - Simplifique geometrias complexas
+
+3. **Faça backup**
+   - Sempre mantenha cópia original
+   - Não confie apenas no arquivo convertido
+
+### Durante a Conversão
+
+1. **Seja paciente**
+   - Arquivos grandes demoram
+   - Não interrompa o processo
+   - Mantenha navegador aberto
+
+2. **Monitore o progresso**
+   - Observe mensagens de erro
+   - Anote problemas encontrados
+   - Use cancelamento se necessário
+
+### Após a Conversão
+
+1. **Valide o resultado**
+   - Use o validador IFC do sistema
+   - Abra em software de destino
+   - Verifique elementos críticos
+
+2. **Compare com original**
+   - Confira contagens de elementos
+   - Verifique propriedades importantes
+   - Teste funcionalidades necessárias
+
+3. **Documente problemas**
+   - Anote o que foi perdido
+   - Reporte bugs encontrados
+   - Sugira melhorias
+
+## Próximos Passos
+
+<Cards>
+  <Card
+    title="Validação de IFC"
+    description="Aprenda a verificar a qualidade dos arquivos convertidos"
+    href="/docs/user-guide/validation"
+  />
+  <Card
+    title="Solução de Problemas"
+    description="Resolva erros comuns em conversões"
+    href="/docs/user-guide/troubleshooting"
+  />
+  <Card
+    title="Referência da API"
+    description="Veja detalhes técnicos dos endpoints"
+    href="/docs/api/endpoints"
+  />
+</Cards>

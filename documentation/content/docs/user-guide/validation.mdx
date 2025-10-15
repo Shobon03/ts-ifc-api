@@ -1,0 +1,411 @@
+---
+title: Validação de IFC
+description: Como validar e verificar a qualidade de arquivos IFC
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+
+## O que é Validação IFC?
+
+A validação verifica se um arquivo IFC está **correto e completo** segundo o padrão Industry Foundation Classes.
+
+<Callout title="Por que validar?">
+  Um arquivo IFC pode abrir em um software mas estar tecnicamente inválido, causando problemas de interoperabilidade, perda de dados ou erros de importação.
+</Callout>
+
+## Como Validar
+
+<Steps>
+
+<Step>
+
+### Acesse o Validador
+
+1. Clique em **"Validate IFC"** no menu
+2. Você verá a interface de validação
+
+</Step>
+
+<Step>
+
+### Selecione o Arquivo
+
+- Arraste ou clique para escolher arquivo `.ifc`
+- Pode ser um IFC que você gerou ou recebeu de terceiros
+
+</Step>
+
+<Step>
+
+### Execute a Validação
+
+1. Clique em **"Validate"**
+2. O sistema analisará o arquivo
+3. Aguarde o processamento (geralmente rápido: 10-30s)
+
+</Step>
+
+<Step>
+
+### Analise o Relatório
+
+O sistema retorna um relatório completo com:
+- Status geral (✅ Válido ou ❌ Inválido)
+- Estatísticas do arquivo
+- Lista de erros (se houver)
+- Lista de avisos (se houver)
+
+</Step>
+
+</Steps>
+
+## Interpretando o Relatório
+
+### Status Geral
+
+```typescript
+interface ValidationResult {
+  isValid: boolean
+  message: string
+  stats: Statistics
+  errors: ValidationError[]
+  warnings: ValidationWarning[]
+}
+```
+
+**✅ Válido**: Arquivo passou em todas as verificações
+**❌ Inválido**: Foram encontrados erros que impedem uso correto
+
+### Estatísticas
+
+O relatório inclui contagens de elementos:
+
+```json
+{
+  "totalEntities": 15847,
+  "uniqueTypes": 156,
+  "breakdown": {
+    "IFCWALL": 847,
+    "IFCSLAB": 156,
+    "IFCWINDOW": 234,
+    "IFCDOOR": 89,
+    "IFCCOLUMN": 45,
+    "IFCBEAM": 123,
+    "...": "..."
+  },
+  "fileSize": "12.5 MB",
+  "schema": "IFC2X3",
+  "mvd": "CoordinationView"
+}
+```
+
+### Tipos de Erros
+
+O validador detecta três categorias:
+
+#### 1. Erros de Sintaxe
+
+Problemas na estrutura do arquivo STEP-21:
+
+```typescript
+// Exemplo de erro de sintaxe
+{
+  type: "SyntaxError",
+  line: 1523,
+  message: "Missing semicolon at end of entity",
+  severity: "error",
+  code: "E001"
+}
+```
+
+**Causas comuns**:
+- Arquivo corrompido
+- Exportação incompleta
+- Edição manual incorreta
+
+**Como resolver**:
+- Reexportar do software original
+- Não editar IFC manualmente
+- Usar ferramenta de reparo IFC
+
+#### 2. Erros de Schema
+
+Violações das regras do schema IFC:
+
+```typescript
+// Exemplo de erro de schema
+{
+  type: "SchemaError",
+  entity: "#12584=IFCWALL(...)",
+  message: "Required attribute 'ObjectPlacement' is missing",
+  severity: "error",
+  code: "E102"
+}
+```
+
+**Causas comuns**:
+- Software de exportação com bugs
+- Versão de schema incorreta
+- Propriedades obrigatórias faltando
+
+**Como resolver**:
+- Verificar configurações de exportação
+- Atualizar software BIM
+- Usar MVD (Model View Definition) correto
+
+#### 3. Erros Semânticos
+
+Problemas de lógica e relacionamentos:
+
+```typescript
+// Exemplo de erro semântico
+{
+  type: "SemanticError",
+  entity: "#9876=IFCWINDOW(...)",
+  message: "Window references non-existent wall #9999",
+  severity: "warning",
+  code: "W201"
+}
+```
+
+**Causas comuns**:
+- Referências quebradas
+- IDs duplicados ou ausentes
+- Relacionamentos inválidos
+
+**Como resolver**:
+- Verificar integridade do modelo original
+- Corrigir relacionamentos no BIM
+- Reexportar após correções
+
+### Avisos (Warnings)
+
+Avisos não tornam o arquivo inválido, mas indicam problemas potenciais:
+
+```typescript
+interface ValidationWarning {
+  type: "MissingOptionalProperty" | "DeprecatedElement" | "RecommendationViolation"
+  severity: "info" | "warning"
+  entity: string
+  message: string
+  recommendation?: string
+}
+```
+
+**Exemplos de avisos**:
+- Propriedades opcionais ausentes
+- Uso de elementos descontinuados
+- Schema antigo (IFC2x3 em vez de IFC4)
+- GUIDs duplicados
+
+## Níveis de Validação
+
+O sistema executa validação em múltiplos níveis:
+
+### Nível 1: Estrutura de Arquivo
+
+```typescript
+// Verificações básicas
+const structureChecks = {
+  header: "Verifica cabeçalho ISO-10303-21",
+  encoding: "Valida caracteres e codificação",
+  sections: "Confirma seções DATA e END-ISO",
+  syntax: "Analisa sintaxe STEP-21"
+}
+```
+
+### Nível 2: Schema IFC
+
+```typescript
+// Verificações de conformidade
+const schemaChecks = {
+  version: "Detecta versão IFC (2x3, 4, 4.3)",
+  entities: "Valida tipos de entidade permitidos",
+  attributes: "Verifica atributos obrigatórios",
+  datatypes: "Confirma tipos de dados corretos"
+}
+```
+
+### Nível 3: Semântica
+
+```typescript
+// Verificações de lógica
+const semanticChecks = {
+  references: "Valida referências entre entidades",
+  guids: "Verifica unicidade de GlobalIds",
+  relationships: "Analisa relacionamentos válidos",
+  hierarchy: "Confirma hierarquia espacial"
+}
+```
+
+### Nível 4: Geometria (Opcional)
+
+```typescript
+// Verificações geométricas avançadas
+const geometryChecks = {
+  validity: "Geometrias válidas e fechadas",
+  topology: "Topologia consistente",
+  coordinates: "Coordenadas dentro de limites",
+  intersections: "Detecta auto-interseções"
+}
+```
+
+<Callout type="info">
+  Validação de geometria pode demorar mais em arquivos grandes. Atualmente é limitada.
+</Callout>
+
+## Códigos de Erro Comuns
+
+| Código | Tipo | Descrição | Severidade |
+|--------|------|-----------|------------|
+| E001 | Sintaxe | Erro de parsing STEP | ❌ Crítico |
+| E002 | Sintaxe | Cabeçalho inválido | ❌ Crítico |
+| E101 | Schema | Tipo de entidade inválido | ❌ Erro |
+| E102 | Schema | Atributo obrigatório faltando | ❌ Erro |
+| E103 | Schema | Tipo de dado incorreto | ❌ Erro |
+| E201 | Semântico | Referência quebrada | ⚠️ Erro |
+| E202 | Semântico | GUID duplicado | ⚠️ Erro |
+| W001 | Aviso | Propriedade opcional ausente | ℹ️ Info |
+| W002 | Aviso | Schema antigo | ℹ️ Info |
+| W003 | Aviso | MVD não declarado | ℹ️ Info |
+
+## Ações Corretivas
+
+### Para Erros Críticos (E001, E002)
+
+1. **Não tente consertar manualmente**
+2. Reexporte do software original
+3. Se persistir, contate suporte do software BIM
+4. Considere usar ferramenta de reparo IFC profissional
+
+### Para Erros de Schema (E101-E103)
+
+1. Verifique configurações de exportação IFC
+2. Atualize software BIM para última versão
+3. Use preset de exportação certificado (ex: "IFC2x3 Coordination View")
+4. Documente e reporte ao desenvolvedor do software
+
+### Para Erros Semânticos (E201-E202)
+
+1. Abra modelo original no BIM
+2. Execute verificação de integridade do software
+3. Corrija relacionamentos quebrados
+4. Regenere GUIDs duplicados
+5. Reexporte IFC
+
+### Para Avisos (W001-W003)
+
+1. Geralmente podem ser ignorados
+2. Considere adicionar propriedades opcionais se importante
+3. Avalie migrar para schema mais recente (IFC4)
+4. Documente para referência futura
+
+## Exemplo de Uso
+
+### Cenário 1: Validar IFC Recebido
+
+Você recebeu um IFC de um parceiro e precisa garantir que está correto:
+
+```typescript
+// Fluxo de validação
+const workflow = {
+  step1: "Fazer upload no validador",
+  step2: "Analisar relatório completo",
+  step3: {
+    if_valid: "Importar no seu software BIM",
+    if_invalid: "Reportar erros ao remetente com detalhes"
+  },
+  step4: "Documentar quaisquer avisos importantes"
+}
+```
+
+### Cenário 2: Validar Antes de Entregar
+
+Antes de enviar IFC para cliente ou órgão regulador:
+
+```typescript
+const deliveryWorkflow = {
+  step1: "Exportar IFC do seu BIM",
+  step2: "Validar no sistema",
+  step3: "Se houver erros: corrigir modelo e reexportar",
+  step4: "Se houver avisos: avaliar se são aceitáveis",
+  step5: "Somente entregar após validação 100% limpa",
+  step6: "Anexar relatório de validação à entrega"
+}
+```
+
+### Cenário 3: Debug de Conversão
+
+Conversão falhou ou resultado está estranho:
+
+```typescript
+const debugWorkflow = {
+  step1: "Validar arquivo de entrada (antes da conversão)",
+  step2: "Se inválido: corrigir e reconverter",
+  step3: "Validar arquivo de saída (após conversão)",
+  step4: "Comparar erros antes vs depois",
+  step5: "Identificar o que foi perdido/corrompido",
+  step6: "Reportar problema com detalhes completos"
+}
+```
+
+## Ferramentas Complementares
+
+O validador do sistema é bom para verificações básicas. Para validação avançada, considere:
+
+### Validadores Profissionais
+
+- **IfcDoc** (buildingSMART): Validador oficial
+- **Solibri Model Checker**: Validação e verificação de regras
+- **SimpleBIM**: Limpeza e otimização de IFC
+- **BIMcollab ZOOM**: Validação e visualização
+
+### Validação Online
+
+- **IFC File Analyzer** (NIST)
+- **BIMserver.org**: Validação e visualização web
+- **IfcOpenShell Validator**: Open source
+
+## Melhores Práticas
+
+### Sempre Valide
+
+✅ **Antes de compartilhar**: Garanta qualidade
+✅ **Após converter**: Confirme integridade
+✅ **Ao receber**: Verifique antes de usar
+✅ **Antes de importar**: Evite problemas
+
+### Documente Resultados
+
+✅ Salve relatórios de validação
+✅ Anote erros e como resolveu
+✅ Mantenha histórico de versões
+✅ Compartilhe problemas com equipe
+
+### Corrija na Origem
+
+✅ Sempre corrija no modelo original
+✅ Não edite IFC manualmente
+✅ Reexporte após correções
+✅ Valide novamente após mudanças
+
+## Próximos Passos
+
+<Cards>
+  <Card
+    title="Solução de Problemas"
+    description="Resolva erros específicos de validação"
+    href="/docs/user-guide/troubleshooting"
+  />
+  <Card
+    title="Conversão de Arquivos"
+    description="Volte para aprender sobre conversões"
+    href="/docs/user-guide/file-conversion"
+  />
+  <Card
+    title="API Reference"
+    description="Veja detalhes técnicos do endpoint de validação"
+    href="/docs/api/endpoints#post-modelsvalidate"
+  />
+</Cards>

@@ -62,3 +62,14 @@
     --ch-26: #0d1117e6;
   }
 }
+
+/* Traduções personalizadas */
+aside[data-toc] h3 {
+  font-size: 0;
+}
+
+aside[data-toc] h3::after {
+  content: 'Nesta página';
+  font-size: 0.875rem;
+  font-weight: 500;
+}

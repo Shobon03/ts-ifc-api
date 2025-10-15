@@ -1,0 +1,412 @@
+---
+title: WebSocket API
+description: Protocolo WebSocket para comunicação em tempo real
+---
+
+## Endpoints WebSocket
+
+### 1. Frontend ↔ Backend Node.js
+
+**URL**: `ws://localhost:3001/ws/conversion-progress`
+
+**Propósito**: Atualizações de progresso de conversão em tempo real
+
+**Conexão**:
+```javascript
+const ws = new WebSocket('ws://localhost:3001/ws/conversion-progress')
+
+ws.onopen = () => {
+  console.log('Connected to conversion progress')
+}
+```
+
+**Mensagens do Cliente**:
+```json
+{
+  "type": "subscribe",
+  "jobId": "abc-123-def-456"
+}
+```
+
+**Mensagens do Servidor**:
+```json
+// Progress update
+{
+  "type": "progress",
+  "jobId": "abc-123",
+  "percentage": 45,
+  "stage": "converting",
+  "message": "Processing elements...",
+  "timestamp": "2025-01-15T10:30:00Z"
+}
+
+// Completed
+{
+  "type": "completed",
+  "jobId": "abc-123",
+  "fileUrl": "/downloads/model.ifc",
+  "timestamp": "2025-01-15T10:35:00Z"
+}
+
+// Error
+{
+  "type": "error",
+  "jobId": "abc-123",
+  "error": "Conversion failed: Invalid file",
+  "timestamp": "2025-01-15T10:32:00Z"
+}
+```
+
+---
+
+### 2. Backend Node.js ↔ Plugin Revit
+
+**URL**: `ws://localhost:8080/ifc-converter`
+
+**Propósito**: Controle do plugin Revit e feedback de progresso
+
+**Conexão** (do Node.js):
+```typescript
+import WebSocket from 'ws'
+
+const ws = new WebSocket('ws://localhost:8080/ifc-converter')
+
+ws.on('open', () => {
+  console.log('Connected to Revit plugin')
+})
+```
+
+**Comandos do Node.js → Revit**:
+```json
+// Start conversion
+{
+  "command": "start_conversion",
+  "jobId": "job-123",
+  "data": {
+    "input_path": "C:\\temp\\model.ifc",
+    "output_path": "C:\\output\\model.rvt",
+    "options": {
+      "import_mode": "import",
+      "positioning": "origin"
+    }
+  }
+}
+
+// Get status
+{
+  "command": "get_status",
+  "jobId": "job-123"
+}
+
+// Cancel
+{
+  "command": "cancel_job",
+  "jobId": "job-123"
+}
+
+// Ping
+{
+  "command": "ping"
+}
+```
+
+**Respostas do Revit → Node.js**:
+```json
+// Conversion started
+{
+  "type": "conversion_started",
+  "jobId": "job-123",
+  "status": "processing"
+}
+
+// Progress
+{
+  "type": "progress",
+  "jobId": "job-123",
+  "status": "processing",
+  "progress": 45,
+  "message": "Importing elements...",
+  "details": {
+    "elementsProcessed": 450,
+    "elementsTotal": 1000,
+    "currentElement": "IFCWALL #12345"
+  }
+}
+
+// Completed
+{
+  "type": "completed",
+  "jobId": "job-123",
+  "status": "success",
+  "output_path": "C:\\output\\model.rvt"
+}
+
+// Error
+{
+  "type": "error",
+  "jobId": "job-123",
+  "error": "Failed to import IFC: Invalid schema"
+}
+
+// Pong
+{
+  "type": "pong",
+  "timestamp": 1642234567890
+}
+```
+
+---
+
+## Tipos de Mensagem
+
+### Client → Server
+
+```typescript
+type ClientMessage =
+  | { type: 'subscribe'; jobId: string }
+  | { type: 'unsubscribe'; jobId: string }
+  | { type: 'ping' }
+
+type PluginCommand =
+  | { command: 'start_conversion'; jobId: string; data: ConversionData }
+  | { command: 'get_status'; jobId: string }
+  | { command: 'cancel_job'; jobId: string }
+  | { command: 'update_path'; data: PathData }
+  | { command: 'ping' }
+```
+
+### Server → Client
+
+```typescript
+type ServerMessage =
+  | { type: 'progress'; jobId: string; percentage: number; message: string }
+  | { type: 'completed'; jobId: string; fileUrl: string }
+  | { type: 'error'; jobId: string; error: string }
+  | { type: 'pong'; timestamp: number }
+
+type PluginResponse =
+  | { type: 'conversion_started'; jobId: string }
+  | { type: 'progress'; jobId: string; progress: number; message: string; details?: Details }
+  | { type: 'completed'; jobId: string; output_path: string }
+  | { type: 'error'; jobId: string; error: string }
+  | { type: 'pong'; timestamp: number }
+```
+
+## Implementação
+
+### Cliente React
+
+```typescript
+// hooks/useWebSocket.ts
+export function useWebSocket(url: string) {
+  const [ws, setWs] = useState<WebSocket | null>(null)
+  const [isConnected, setIsConnected] = useState(false)
+  const [messages, setMessages] = useState<any[]>([])
+
+  useEffect(() => {
+    const socket = new WebSocket(url)
+
+    socket.onopen = () => {
+      setIsConnected(true)
+      setWs(socket)
+    }
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data)
+      setMessages(prev => [...prev, data])
+    }
+
+    socket.onclose = () => {
+      setIsConnected(false)
+    }
+
+    return () => {
+      socket.close()
+    }
+  }, [url])
+
+  const send = (data: any) => {
+    if (ws && isConnected) {
+      ws.send(JSON.stringify(data))
+    }
+  }
+
+  return { isConnected, messages, send }
+}
+```
+
+### Servidor Fastify
+
+```typescript
+// backend/node/src/routes/websocket.route.ts
+import { FastifyInstance } from 'fastify'
+
+export async function websocketRoutes(fastify: FastifyInstance) {
+  fastify.get('/ws/conversion-progress', { websocket: true }, (connection, req) => {
+    connection.socket.on('message', (message) => {
+      const data = JSON.parse(message.toString())
+
+      if (data.type === 'subscribe') {
+        // Adiciona cliente à lista de subscritores
+        subscribers.set(data.jobId, connection.socket)
+      }
+    })
+
+    connection.socket.on('close', () => {
+      // Remove subscriber
+    })
+  })
+}
+
+// Função para enviar progresso
+export function sendProgress(jobId: string, progress: ProgressData) {
+  const socket = subscribers.get(jobId)
+
+  if (socket) {
+    socket.send(JSON.stringify({
+      type: 'progress',
+      jobId,
+      ...progress
+    }))
+  }
+}
+```
+
+### Plugin Revit (C#)
+
+```csharp
+// WebSocketServer.cs
+using WebSocketSharp.Server;
+
+public class WebSocketServer
+{
+    private WebSocketSharp.Server.WebSocketServer _server;
+
+    public void Start(int port)
+    {
+        _server = new WebSocketSharp.Server.WebSocketServer($"ws://localhost:{port}");
+
+        _server.AddWebSocketService<IfcConverterService>("/ifc-converter");
+
+        _server.Start();
+    }
+}
+
+// IfcConverterService.cs
+using WebSocketSharp;
+using Newtonsoft.Json;
+
+public class IfcConverterService : WebSocketBehavior
+{
+    protected override void OnMessage(MessageEventArgs e)
+    {
+        var command = JsonConvert.DeserializeObject<Command>(e.Data);
+
+        switch (command.CommandType)
+        {
+            case "start_conversion":
+                StartConversion(command.Data);
+                break;
+
+            case "ping":
+                Send(JsonConvert.SerializeObject(new
+                {
+                    type = "pong",
+                    timestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds()
+                }));
+                break;
+        }
+    }
+
+    private void StartConversion(ConversionData data)
+    {
+        // Envia confirmação
+        Send(JsonConvert.SerializeObject(new
+        {
+            type = "conversion_started",
+            jobId = data.JobId
+        }));
+
+        // Inicia conversão (via ExternalEvent)
+        // ...
+    }
+
+    public void SendProgress(int percentage, string message)
+    {
+        Send(JsonConvert.SerializeObject(new
+        {
+            type = "progress",
+            progress = percentage,
+            message = message
+        }));
+    }
+}
+```
+
+## Reconexão Automática
+
+```typescript
+class ReconnectingWebSocket {
+  private ws: WebSocket | null = null
+  private url: string
+  private reconnectAttempts = 0
+  private maxReconnectAttempts = 5
+
+  constructor(url: string) {
+    this.url = url
+    this.connect()
+  }
+
+  private connect() {
+    this.ws = new WebSocket(this.url)
+
+    this.ws.onopen = () => {
+      this.reconnectAttempts = 0
+      console.log('Connected')
+    }
+
+    this.ws.onclose = () => {
+      this.reconnect()
+    }
+
+    this.ws.onerror = (error) => {
+      console.error('WebSocket error:', error)
+    }
+  }
+
+  private reconnect() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('Max reconnect attempts reached')
+      return
+    }
+
+    this.reconnectAttempts++
+
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000)
+
+    setTimeout(() => {
+      console.log(`Reconnecting... (attempt ${this.reconnectAttempts})`)
+      this.connect()
+    }, delay)
+  }
+
+  send(data: any) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(data))
+    }
+  }
+
+  close() {
+    this.maxReconnectAttempts = 0
+    this.ws?.close()
+  }
+}
+```
+
+## Próximos Passos
+
+<Cards>
+  <Card title="API Endpoints" href="/docs/api/endpoints" />
+  <Card title="Models" href="/docs/api/models" />
+  <Card title="Plugin Revit" href="/docs/plugins/revit" />
+</Cards>

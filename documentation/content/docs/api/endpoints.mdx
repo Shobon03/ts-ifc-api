@@ -1,0 +1,253 @@
+---
+title: Endpoints da API
+description: Referência completa de todos os endpoints REST
+---
+
+## Base URL
+
+```
+http://localhost:3001/api
+```
+
+## Autenticação
+
+Atualmente a API não requer autenticação. Para produção, considere adicionar JWT ou API keys.
+
+## Endpoints
+
+### POST /models/generate-ifc
+
+Converte arquivo Revit (.rvt) para IFC usando Autodesk Forge.
+
+**Request**:
+```http
+POST /api/models/generate-ifc HTTP/1.1
+Content-Type: multipart/form-data
+
+file: [binary .rvt file]
+```
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "jobId": "abc-123-def-456",
+  "urn": "dXJuOmFkc2sud2lwcHJvZDp...",
+  "message": "Conversion started"
+}
+```
+
+**Errors**:
+- `400`: No file uploaded / Invalid file format
+- `413`: File too large (>100MB)
+- `500`: Forge authentication failed
+- `503`: Forge service unavailable
+
+---
+
+### POST /models/validate
+
+Valida estrutura e conformidade de arquivo IFC.
+
+**Request**:
+```http
+POST /api/models/validate HTTP/1.1
+Content-Type: multipart/form-data
+
+file: [binary .ifc file]
+```
+
+**Response** (200):
+```json
+{
+  "isValid": true,
+  "errors": [],
+  "warnings": [
+    {
+      "type": "MissingOptionalProperty",
+      "entity": "#12345",
+      "message": "Optional attribute 'Name' is missing"
+    }
+  ],
+  "stats": {
+    "totalEntities": 15847,
+    "uniqueTypes": 156,
+    "breakdown": {
+      "IFCWALL": 847,
+      "IFCSLAB": 234,
+      "IFCWINDOW": 189
+    },
+    "fileSize": "12.5 MB",
+    "schema": "IFC2X3"
+  }
+}
+```
+
+**Errors**:
+- `400`: No file / Invalid IFC format
+- `500`: Validation error
+
+---
+
+### GET /health
+
+Health check do servidor.
+
+**Response** (200):
+```json
+{
+  "status": "ok",
+  "timestamp": "2025-01-15T10:30:00Z",
+  "uptime": 123456,
+  "services": {
+    "forge": "connected",
+    "python": "connected",
+    "revit_ws": "disconnected"
+  }
+}
+```
+
+---
+
+### WebSocket /ws/conversion-progress
+
+Atualizações em tempo real de progresso de conversão.
+
+**Connect**:
+```javascript
+const ws = new WebSocket('ws://localhost:3001/ws/conversion-progress')
+```
+
+**Subscribe**:
+```json
+{
+  "type": "subscribe",
+  "jobId": "abc-123"
+}
+```
+
+**Progress Updates**:
+```json
+{
+  "type": "progress",
+  "jobId": "abc-123",
+  "percentage": 45,
+  "stage": "converting",
+  "message": "Processing model...",
+  "timestamp": "2025-01-15T10:31:22Z"
+}
+```
+
+**Completion**:
+```json
+{
+  "type": "completed",
+  "jobId": "abc-123",
+  "fileUrl": "/downloads/model_converted.ifc",
+  "timestamp": "2025-01-15T10:35:00Z"
+}
+```
+
+**Error**:
+```json
+{
+  "type": "error",
+  "jobId": "abc-123",
+  "error": "Conversion failed: Invalid file",
+  "timestamp": "2025-01-15T10:32:00Z"
+}
+```
+
+## Códigos de Status HTTP
+
+| Código | Significado | Uso |
+|--------|-------------|-----|
+| 200 | OK | Sucesso |
+| 400 | Bad Request | Parâmetros inválidos |
+| 401 | Unauthorized | Sem autenticação (futuro) |
+| 413 | Payload Too Large | Arquivo > 100MB |
+| 429 | Too Many Requests | Rate limit excedido |
+| 500 | Internal Server Error | Erro no servidor |
+| 503 | Service Unavailable | Serviço externo offline |
+
+## Rate Limiting
+
+- **Limite**: 100 requisições por 15 minutos por IP
+- **Header**: `X-RateLimit-Remaining: 95`
+- **Reset**: `X-RateLimit-Reset: 1642234567`
+
+## CORS
+
+Configurado para aceitar requisições de:
+- `http://localhost:5173` (frontend dev)
+- Origem configurada em `FRONTEND_URL`
+
+## Exemplos
+
+### cURL
+
+```bash
+# Generate IFC
+curl -X POST http://localhost:3001/api/models/generate-ifc \
+  -F "file=@path/to/model.rvt"
+
+# Validate IFC
+curl -X POST http://localhost:3001/api/models/validate \
+  -F "file=@path/to/model.ifc"
+
+# Health check
+curl http://localhost:3001/health
+```
+
+### JavaScript (fetch)
+
+```javascript
+// Upload and convert
+const formData = new FormData()
+formData.append('file', fileInput.files[0])
+
+const response = await fetch('http://localhost:3001/api/models/generate-ifc', {
+  method: 'POST',
+  body: formData
+})
+
+const result = await response.json()
+console.log('Job ID:', result.jobId)
+
+// WebSocket progress
+const ws = new WebSocket('ws://localhost:3001/ws/conversion-progress')
+
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    type: 'subscribe',
+    jobId: result.jobId
+  }))
+}
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data)
+  console.log('Progress:', data.percentage + '%')
+}
+```
+
+### Python
+
+```python
+import requests
+
+# Upload file
+with open('model.rvt', 'rb') as f:
+    files = {'file': f}
+    response = requests.post(
+        'http://localhost:3001/api/models/generate-ifc',
+        files=files
+    )
+
+result = response.json()
+print(f"Job ID: {result['jobId']}")
+```
+
+Para documentação interativa Swagger, acesse:
+```
+http://localhost:3001/documentation
+```

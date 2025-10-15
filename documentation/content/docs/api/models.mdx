@@ -1,0 +1,289 @@
+---
+title: Modelos de Dados
+description: Tipos e schemas usados na API
+---
+
+## TypeScript Types
+
+### ConversionJob
+
+```typescript
+interface ConversionJob {
+  id: string
+  type: 'revit-to-ifc' | 'archicad-to-ifc' | 'ifc-to-revit'
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  progress: number // 0-100
+  input_file: string
+  output_file?: string
+  created_at: Date
+  updated_at: Date
+  error?: string
+  metadata?: Record<string, any>
+}
+```
+
+### ValidationResult
+
+```typescript
+interface ValidationResult {
+  isValid: boolean
+  errors: ValidationError[]
+  warnings: ValidationWarning[]
+  stats: ValidationStats
+}
+
+interface ValidationError {
+  type: 'SyntaxError' | 'SchemaError' | 'SemanticError'
+  line?: number
+  entity?: string
+  message: string
+  severity: 'error' | 'critical'
+  code?: string
+}
+
+interface ValidationWarning {
+  type: string
+  entity?: string
+  message: string
+  severity: 'info' | 'warning'
+}
+
+interface ValidationStats {
+  totalEntities: number
+  uniqueTypes: number
+  breakdown: Record<string, number>
+  fileSize: string
+  schema: 'IFC2X3' | 'IFC4' | 'IFC4X3'
+  mvd?: string
+}
+```
+
+### ForgeJob
+
+```typescript
+interface ForgeJob {
+  urn: string
+  jobId: string
+  status: 'pending' | 'inprogress' | 'success' | 'failed'
+  progress: number
+  result?: {
+    manifest: string
+    derivatives: DerivativeInfo[]
+  }
+}
+
+interface DerivativeInfo {
+  role: string
+  mime: string
+  urn: string
+  status: string
+}
+```
+
+### PluginCommand (Revit)
+
+```typescript
+interface PluginCommand {
+  command: CommandType
+  jobId: string
+  data?: ConversionData
+}
+
+type CommandType =
+  | 'start_conversion'
+  | 'get_status'
+  | 'cancel_job'
+  | 'update_path'
+  | 'ping'
+
+interface ConversionData {
+  input_path: string
+  output_path: string
+  options?: {
+    import_mode?: 'link' | 'import'
+    positioning?: 'origin' | 'shared' | 'site'
+    create_separate_model?: boolean
+  }
+}
+```
+
+### PluginResponse (Revit)
+
+```typescript
+interface PluginResponse {
+  type: ResponseType
+  jobId: string
+  status?: JobStatus
+  progress?: number
+  message?: string
+  details?: ProgressDetails
+  error?: string
+  output_path?: string
+}
+
+type ResponseType =
+  | 'conversion_started'
+  | 'progress'
+  | 'completed'
+  | 'error'
+  | 'pong'
+
+type JobStatus = 'idle' | 'processing' | 'completed' | 'error' | 'cancelled'
+
+interface ProgressDetails {
+  elementsProcessed: number
+  elementsTotal: number
+  currentElement: string
+  currentPhase: string
+}
+```
+
+## Zod Schemas
+
+### Request Validation
+
+```typescript
+import { z } from 'zod'
+
+export const fileUploadSchema = z.object({
+  file: z.instanceof(File)
+    .refine(file => file.size <= 100 * 1024 * 1024, 'File too large (max 100MB)')
+    .refine(file => {
+      const ext = file.name.split('.').pop()?.toLowerCase()
+      return ['rvt', 'pln', 'ifc'].includes(ext || '')
+    }, 'Invalid file format')
+})
+
+export const conversionRequestSchema = z.object({
+  type: z.enum(['revit-to-ifc', 'archicad-to-ifc', 'ifc-to-revit']),
+  options: z.object({
+    schema: z.enum(['IFC2X3', 'IFC4']).optional(),
+    coordinate_system: z.enum(['project', 'shared', 'site']).optional()
+  }).optional()
+})
+```
+
+### Response Validation
+
+```typescript
+export const conversionResponseSchema = z.object({
+  success: z.boolean(),
+  jobId: z.string().uuid(),
+  urn: z.string().optional(),
+  message: z.string()
+})
+
+export const validationResponseSchema = z.object({
+  isValid: z.boolean(),
+  errors: z.array(z.object({
+    type: z.string(),
+    line: z.number().optional(),
+    entity: z.string().optional(),
+    message: z.string(),
+    severity: z.enum(['error', 'critical'])
+  })),
+  warnings: z.array(z.object({
+    type: z.string(),
+    message: z.string()
+  })),
+  stats: z.object({
+    totalEntities: z.number(),
+    uniqueTypes: z.number(),
+    breakdown: z.record(z.number()),
+    fileSize: z.string(),
+    schema: z.string()
+  })
+})
+```
+
+## Database Models (Futuro)
+
+```typescript
+// Possível implementação com Prisma
+model ConversionJob {
+  id          String   @id @default(uuid())
+  type        String
+  status      String
+  progress    Int      @default(0)
+  inputFile   String
+  outputFile  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  error       String?
+  metadata    Json?
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ValidationResult {
+  id        String   @id @default(uuid())
+  fileHash  String   @unique
+  isValid   Boolean
+  errors    Json
+  warnings  Json
+  stats     Json
+  createdAt DateTime @default(now())
+
+  @@index([fileHash])
+}
+```
+
+## Constantes
+
+```typescript
+export const FILE_LIMITS = {
+  MAX_SIZE: 100 * 1024 * 1024, // 100MB
+  ALLOWED_EXTENSIONS: ['.rvt', '.pln', '.ifc'],
+  MIME_TYPES: [
+    'application/octet-stream',
+    'application/x-revit',
+    'model/ifc'
+  ]
+} as const
+
+export const JOB_STATUS = {
+  PENDING: 'pending',
+  PROCESSING: 'processing',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+  CANCELLED: 'cancelled'
+} as const
+
+export const IFC_VERSIONS = {
+  IFC2X3: 'IFC2X3',
+  IFC4: 'IFC4',
+  IFC4X3: 'IFC4X3'
+} as const
+
+export const ERROR_CODES = {
+  INVALID_FILE: 'E001',
+  FILE_TOO_LARGE: 'E002',
+  CONVERSION_FAILED: 'E003',
+  VALIDATION_FAILED: 'E004',
+  FORGE_AUTH_FAILED: 'E005',
+  PLUGIN_DISCONNECTED: 'E006'
+} as const
+```
+
+## Utility Types
+
+```typescript
+export type Prettify<T> = {
+  [K in keyof T]: T[K]
+} & {}
+
+export type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P]
+}
+
+export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> =
+  Pick<T, Exclude<keyof T, Keys>>
+  & {
+      [K in Keys]-?: Required<Pick<T, K>> & Partial<Pick<T, Exclude<Keys, K>>>
+    }[Keys]
+```
+
+---
+
+Estes são os modelos de dados principais usados em toda a aplicação. Para exemplos de uso, consulte a [API Reference](/docs/api/endpoints).

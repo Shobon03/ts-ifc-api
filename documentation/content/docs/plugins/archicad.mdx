@@ -1,0 +1,525 @@
+---
+title: Plugin Archicad
+description: Compilação e instalação do plugin C++ para Archicad 28.4
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+
+## Requisitos
+
+<Callout type="warn" title="Windows + Versão Específica do VS">
+  Archicad API DevKit 28 requer **Visual Studio 2019** especificamente. VS 2022 não é compatível!
+</Callout>
+
+- **Archicad**: 28.4
+- **Visual Studio**: 2019 (não 2022!)
+- **API DevKit**: 28.4001
+  - Local: `C:\Program Files\Graphisoft\API Development Kit 28.4001\`
+- **CMake**: 3.20 ou superior
+- **Windows**: 10 ou 11
+
+## Instalação do API DevKit
+
+<Steps>
+
+<Step>
+
+### Baixe o DevKit
+
+1. Acesse [Graphisoft Developer Center](https://graphisoft.com/developer)
+2. Faça login com conta Graphisoft
+3. Baixe "API Development Kit 28.4001"
+
+</Step>
+
+<Step>
+
+### Instale
+
+```bash
+# Execute instalador
+API_DevKit_28.4001.exe
+
+# Instale em (padrão):
+C:\Program Files\Graphisoft\API Development Kit 28.4001\
+```
+
+</Step>
+
+<Step>
+
+### Verifique Instalação
+
+```bash
+dir "C:\Program Files\Graphisoft\API Development Kit 28.4001\"
+
+# Deve conter:
+# - Support/
+# - Examples/
+# - Documentation/
+# - Modules/
+```
+
+</Step>
+
+</Steps>
+
+## Estrutura do Plugin
+
+```cpp
+plugins/archicad/ArchiCAD-IFC-Plugin/
+├── CMakeLists.txt              // Build configuration
+├── src/
+│   ├── Main.cpp                // Entry point & registration
+│   ├── IFCExport.cpp           // Export logic
+│   ├── IFCImport.cpp           // Import logic (TODO)
+│   ├── ResourceIDs.h           // Menu IDs
+│   └── Utils.cpp               // Helpers
+├── res/
+│   ├── RFIX.grc                // Resources
+│   └── LocalizedResources/
+└── build/                      // CMake output
+```
+
+## Compilação
+
+<Steps>
+
+<Step>
+
+### Configure CMake
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.20)
+project(ArchiCADIFCPlugin)
+
+# Variáveis importantes
+set(ARCHICAD_VERSION "28")
+set(AC_API_DEVKIT_DIR "C:/Program Files/Graphisoft/API Development Kit 28.4001")
+
+# Includes do DevKit
+include_directories(
+    "${AC_API_DEVKIT_DIR}/Support/Inc"
+    "${AC_API_DEVKIT_DIR}/Support/Modules/GSRoot"
+    "${AC_API_DEVKIT_DIR}/Support/Modules/Pattern"
+)
+
+# Adiciona biblioteca do plugin
+add_library(ArchiCADIFCPlugin SHARED
+    src/Main.cpp
+    src/IFCExport.cpp
+    src/Utils.cpp
+)
+
+# Link com libs do DevKit
+target_link_libraries(ArchiCADIFCPlugin
+    "${AC_API_DEVKIT_DIR}/Support/Lib/Win/ACAP_STAT.lib"
+)
+
+# Output: .apx (Archicad Plugin Extension)
+set_target_properties(ArchiCADIFCPlugin PROPERTIES
+    SUFFIX ".apx"
+)
+```
+
+</Step>
+
+<Step>
+
+### Gere Projeto Visual Studio
+
+```bash
+cd plugins/archicad/ArchiCAD-IFC-Plugin
+mkdir build
+cd build
+
+# Gera solução VS 2019
+cmake .. -G "Visual Studio 16 2019" -A x64
+```
+
+<Callout title="Visual Studio 16 = 2019">
+  Visual Studio 2019 é internamente chamado de "16". Não use "Visual Studio 17 2022"!
+</Callout>
+
+</Step>
+
+<Step>
+
+### Compile
+
+```bash
+# Via CMake
+cmake --build . --config Release
+
+# Ou abra no Visual Studio 2019
+start ArchiCADIFCPlugin.sln
+# Build → Build Solution
+```
+
+**Saída**:
+```
+build/Release/ArchiCADIFCPlugin.apx
+```
+
+</Step>
+
+</Steps>
+
+## Instalação
+
+<Steps>
+
+<Step>
+
+### Localize Pasta de Add-Ons
+
+```bash
+# Archicad 28
+C:\Program Files\Graphisoft\ARCHICAD 28\Add-Ons\
+```
+
+</Step>
+
+<Step>
+
+### Copie o Plugin
+
+```bash
+copy build\Release\ArchiCADIFCPlugin.apx ^
+  "C:\Program Files\Graphisoft\ARCHICAD 28\Add-Ons\"
+```
+
+</Step>
+
+<Step>
+
+### Reinicie Archicad
+
+```bash
+# Feche Archicad se estiver aberto
+taskkill /IM ARCHICAD.exe /F
+
+# Abra novamente
+"C:\Program Files\Graphisoft\ARCHICAD 28\ARCHICAD.exe"
+```
+
+</Step>
+
+</Steps>
+
+## Uso
+
+<Steps>
+
+<Step>
+
+### Verifique Menu
+
+1. Abra Archicad
+2. Menu **Tools** ou **Options**
+3. Procure por "IFC Converter" ou item customizado
+
+</Step>
+
+<Step>
+
+### Exportar IFC
+
+```cpp
+// O plugin adiciona comando no menu
+// Usuário: File → Export → IFC Converter
+// Ou: Tools → IFC Converter → Export
+
+// Internamente executa:
+API_IFCTranslatorPars pars;
+pars.version = API_IFCVersion_2x3;
+pars.filePath = outputPath;
+
+GSErrCode err = ACAPI_Automate(
+    APIDo_SaveID,
+    &pars,
+    nullptr
+);
+```
+
+</Step>
+
+</Steps>
+
+## Código Principal
+
+### Main.cpp - Inicialização
+
+```cpp
+#include "ACAPinc.h"
+
+// 1. Check Environment
+API_AddonType __ACDLL_CALL CheckEnvironment(API_EnvirParams* envir)
+{
+    RSGetIndString(&envir->addOnInfo.name, 32000, 1, ACAPI_GetOwnResModule());
+    RSGetIndString(&envir->addOnInfo.description, 32000, 2, ACAPI_GetOwnResModule());
+
+    return APIAddon_Normal;
+}
+
+// 2. Register Interface
+GSErrCode __ACDLL_CALL RegisterInterface()
+{
+    // Registra menu
+    GSErrCode err = ACAPI_Register_Menu(
+        32500,  // Menu ID
+        0,      // Depois de qual item (0 = no final)
+        MenuCode_UserDef,
+        MenuFlag_Default
+    );
+
+    return err;
+}
+
+// 3. Initialize
+GSErrCode __ACDLL_CALL Initialize()
+{
+    // Registra handler de menu
+    GSErrCode err = ACAPI_Install_MenuHandler(
+        32500,
+        MenuCommandHandler
+    );
+
+    return err;
+}
+```
+
+### IFCExport.cpp - Exportação
+
+```cpp
+#include "ACAPinc.h"
+#include <string>
+
+// Handler de comando de menu
+GSErrCode __ACDLL_CALL MenuCommandHandler(const API_MenuParams* menuParams)
+{
+    switch (menuParams->menuItemRef.menuResID) {
+        case 32500:  // Export IFC
+            return ExportProjectToIFC();
+
+        default:
+            break;
+    }
+
+    return NoError;
+}
+
+// Exporta projeto para IFC
+GSErrCode ExportProjectToIFC()
+{
+    // Configurações de exportação
+    API_IFCTranslatorPars ifcPars;
+    BNZeroMemory(&ifcPars, sizeof(API_IFCTranslatorPars));
+
+    // Versão IFC
+    ifcPars.version = API_IFCVersion_2x3;  // ou API_IFCVersion_4
+
+    // Caminho de saída (pode vir de diálogo)
+    IO::Location outputLocation;
+    outputLocation.Set("C:\\temp\\export.ifc");
+    ifcPars.fileLoc = &outputLocation;
+
+    // Sistema de coordenadas
+    ifcPars.isSiteTransformationOn = false;
+
+    // Geometria
+    ifcPars.exportContainerElemLikeZone = true;
+
+    // Executa exportação
+    GSErrCode err = ACAPI_Automate(
+        APIDo_SaveID,
+        &ifcPars,
+        nullptr
+    );
+
+    if (err != NoError) {
+        ACAPI_WriteReport("IFC Export failed!", true);
+        return err;
+    }
+
+    ACAPI_WriteReport("IFC Export successful!", false);
+    return NoError;
+}
+
+// Diálogo para escolher arquivo (opcional)
+GSErrCode ShowSaveDialog(IO::Location* outputLoc)
+{
+    DG::FileDialog dlg(DG::FileDialog::Save);
+
+    dlg.SetTitle("Export IFC");
+    dlg.AddFilter("IFC Files", {"ifc"});
+    dlg.SetDefaultFolder(IO::Location());
+
+    if (dlg.Invoke()) {
+        *outputLoc = dlg.GetSelectedFile();
+        return NoError;
+    }
+
+    return APIERR_CANCEL;
+}
+```
+
+## Funcionalidades Atuais (65%)
+
+### ✅ Implementado
+
+- Estrutura básica do plugin
+- Registro no menu do Archicad
+- Exportação PLN → IFC via API
+- Configuração de versão IFC (2x3/4)
+- CMake build system
+- Integração com API DevKit 28
+
+### ❌ Pendente (35%)
+
+- Servidor WebSocket (como plugin Revit)
+- Importação IFC → PLN
+- Feedback de progresso detalhado
+- Comunicação bidirecional com backend Python
+- Interface de configuração avançada
+- Cancelamento de operações
+- Logging estruturado
+
+## Desenvolvimento Futuro
+
+### Adicionar WebSocket
+
+```cpp
+// Futuro: Similar ao plugin Revit
+#include <websocketpp/server.hpp>
+
+class WebSocketServer {
+public:
+    void Start(int port) {
+        server.listen(port);
+        server.start_accept();
+        // Thread separada
+        thread = std::thread([this]() {
+            server.run();
+        });
+    }
+
+    void OnMessage(connection_hdl hdl, message_ptr msg) {
+        // Parse comando JSON
+        // Executar via ACAPI callbacks
+    }
+
+private:
+    websocketpp::server<websocketpp::config::asio> server;
+    std::thread thread;
+};
+```
+
+### Importação IFC
+
+```cpp
+GSErrCode ImportIFCToProject(const char* ifcPath)
+{
+    API_IFCTranslatorPars ifcPars;
+    BNZeroMemory(&ifcPars, sizeof(API_IFCTranslatorPars));
+
+    IO::Location inputLoc(ifcPath);
+    ifcPars.fileLoc = &inputLoc;
+
+    // Merge ou New projeto
+    ifcPars.openMode = API_IFCOpenMode_Merge;
+
+    GSErrCode err = ACAPI_Automate(
+        APIDo_OpenID,
+        &ifcPars,
+        nullptr
+    );
+
+    return err;
+}
+```
+
+## Debug
+
+### Logs do Archicad
+
+```cpp
+// Adicione logs no código
+ACAPI_WriteReport("Debug: Starting export", false);
+ACAPI_WriteReport(GS::UniString::Printf("Path: %s", path), false);
+
+// Logs aparecem em:
+// Archicad → Help → Report
+```
+
+### Debug com Visual Studio
+
+```bash
+# 1. Compile em Debug
+cmake --build . --config Debug
+
+# 2. Configure VS para anexar
+# Debug → Attach to Process → ARCHICAD.exe
+
+# 3. Coloque breakpoints no código
+
+# 4. Execute comando no Archicad
+```
+
+### Erros Comuns
+
+| Erro | Causa | Solução |
+|------|-------|---------|
+| "Plugin not loaded" | .apx corrompido | Recompile limpo |
+| "API version mismatch" | DevKit errado | Use 28.4001 |
+| "Cannot find ACAP_STAT.lib" | Caminho incorreto | Verifique CMakeLists.txt |
+| "VS 2022 incompatible" | Versão errada VS | Use VS 2019! |
+
+## Build Automático
+
+### Script PowerShell
+
+```powershell
+# build-and-install.ps1
+$buildDir = "build"
+$pluginPath = "$buildDir/Release/ArchiCADIFCPlugin.apx"
+$installPath = "C:\Program Files\Graphisoft\ARCHICAD 28\Add-Ons\"
+
+# Clean
+if (Test-Path $buildDir) {
+    Remove-Item $buildDir -Recurse -Force
+}
+
+# Configure
+cmake -S . -B $buildDir -G "Visual Studio 16 2019" -A x64
+
+# Build
+cmake --build $buildDir --config Release
+
+# Install
+Copy-Item $pluginPath $installPath -Force
+
+Write-Host "Plugin installed successfully!"
+```
+
+## Próximos Passos
+
+<Cards>
+  <Card
+    title="Plugin Revit"
+    description="Veja o plugin mais completo como referência"
+    href="/docs/plugins/revit"
+  />
+  <Card
+    title="Backend Python"
+    description="Integre com o servidor Python"
+    href="/docs/developer-guide/backend-python"
+  />
+  <Card
+    title="Contribuir"
+    description="Ajude a completar os 35% restantes!"
+    href="https://github.com/Shobon03/ts-ifc-api"
+  />
+</Cards>

@@ -1,0 +1,26 @@
+{
+  "title": "Documentação",
+  "pages": [
+    "index",
+    "---Guia do Usuário---",
+    "user-guide/introduction",
+    "user-guide/getting-started",
+    "user-guide/file-conversion",
+    "user-guide/validation",
+    "user-guide/troubleshooting",
+    "---Guia do Desenvolvedor---",
+    "developer-guide/architecture",
+    "developer-guide/setup",
+    "developer-guide/backend-node",
+    "developer-guide/backend-python",
+    "developer-guide/frontend",
+    "developer-guide/plugins",
+    "---Plugins---",
+    "plugins/revit",
+    "plugins/archicad",
+    "---Referência da API---",
+    "api/endpoints",
+    "api/websockets",
+    "api/models"
+  ]
+}

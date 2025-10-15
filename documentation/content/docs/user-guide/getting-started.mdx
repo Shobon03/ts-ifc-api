@@ -1,0 +1,362 @@
+---
+title: Primeiros Passos
+description: Acesse o sistema e faça sua primeira conversão
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+
+## Acessando o Sistema
+
+<Steps>
+
+<Step>
+
+### Abra seu Navegador
+
+Use um navegador moderno atualizado:
+- Google Chrome (recomendado)
+- Mozilla Firefox
+- Microsoft Edge
+- Safari
+
+</Step>
+
+<Step>
+
+### Acesse a URL
+
+Digite o endereço fornecido pelo administrador do sistema:
+
+- **Desenvolvimento local**: `http://localhost:5173`
+- **Produção**: URL fornecida pela equipe
+
+</Step>
+
+<Step>
+
+### Página Inicial
+
+Você verá a tela de boas-vindas com:
+- Banner explicativo sobre o sistema
+- Menu de navegação superior
+- Botões para acessar as funcionalidades
+
+</Step>
+
+</Steps>
+
+## Interface do Sistema
+
+### Menu Principal
+
+O sistema possui as seguintes páginas:
+
+```typescript
+const navigation = {
+  "Home": "Página inicial com visão geral",
+  "IFC Conversion": "Conversão Revit → IFC via Forge",
+  "Archicad Conversion": "Conversão Archicad → IFC",
+  "IFC to Revit": "Conversão IFC → Revit",
+  "Validate IFC": "Validação de arquivos IFC",
+  "Model Transformation": "Transformações avançadas",
+  "WebSocket Demo": "Demonstração de comunicação em tempo real"
+}
+```
+
+### Elementos Comuns
+
+Todas as páginas de conversão compartilham elementos similares:
+
+1. **Área de Upload**
+   - Botão "Escolher arquivo" ou drag-and-drop
+   - Indicação do tipo de arquivo aceito
+   - Nome do arquivo selecionado
+
+2. **Botão de Conversão**
+   - Ativa após selecionar arquivo
+   - Inicia o processamento
+
+3. **Barra de Progresso**
+   - Aparece durante a conversão
+   - Mostra porcentagem e status
+   - Pode ser cancelada (se suportado)
+
+4. **Indicador de Status WebSocket**
+   - 🟢 Verde: Conectado
+   - 🟡 Amarelo: Conectando
+   - 🔴 Vermelho: Desconectado
+
+## Sua Primeira Conversão
+
+Vamos fazer uma conversão simples de **Revit para IFC**:
+
+<Steps>
+
+<Step>
+
+### Selecione o Arquivo
+
+1. Clique em "IFC Conversion" no menu
+2. Clique no botão "Escolher arquivo" ou arraste o arquivo para a área
+3. Selecione um arquivo `.rvt` do seu computador
+4. O nome do arquivo aparecerá na tela
+
+<Callout type="info">
+  Certifique-se de que o arquivo tem menos de 100MB e está no formato correto (.rvt)
+</Callout>
+
+</Step>
+
+<Step>
+
+### Inicie a Conversão
+
+1. Clique no botão "Converter" ou "Convert"
+2. A barra de progresso começará a aparecer
+3. Aguarde o processamento
+
+**Você verá as seguintes etapas**:
+
+```typescript
+const conversionStages = {
+  "0-20%": "Uploading file to server...",
+  "20-40%": "Sending to Autodesk Forge...",
+  "40-80%": "Converting to IFC...",
+  "80-95%": "Downloading result...",
+  "95-100%": "Finalizing..."
+}
+```
+
+</Step>
+
+<Step>
+
+### Aguarde o Resultado
+
+Durante o processo você pode:
+- ✅ Acompanhar o progresso em tempo real
+- ✅ Ver mensagens de status detalhadas
+- ✅ Cancelar se necessário (em algumas conversões)
+
+**Não**:
+- ❌ Fechar o navegador (interrompe a conversão)
+- ❌ Mudar de página (perde o progresso)
+- ❌ Desligar o computador
+
+</Step>
+
+<Step>
+
+### Baixe o Arquivo
+
+Quando a conversão atingir 100%:
+1. O arquivo `.ifc` será baixado automaticamente
+2. Você verá uma mensagem de sucesso
+3. O arquivo estará na pasta de Downloads do seu navegador
+
+</Step>
+
+</Steps>
+
+## Verificando o Resultado
+
+Após baixar o arquivo IFC:
+
+<Steps>
+
+<Step>
+
+### Localize o Arquivo
+
+1. Vá para a pasta de Downloads
+2. Procure por um arquivo com extensão `.ifc`
+3. O nome geralmente será baseado no arquivo original
+
+</Step>
+
+<Step>
+
+### Valide o IFC (Opcional mas Recomendado)
+
+1. Volte ao sistema
+2. Vá para "Validate IFC"
+3. Faça upload do arquivo `.ifc` que acabou de baixar
+4. Veja o relatório de validação
+
+<Callout type="success">
+  Se o validador mostrar "✅ Valid IFC", seu arquivo está pronto para uso!
+</Callout>
+
+</Step>
+
+<Step>
+
+### Teste no Software de Destino
+
+1. Abra o software BIM de destino (ex: outro visualizador IFC)
+2. Importe ou abra o arquivo `.ifc`
+3. Verifique se os elementos aparecem corretamente
+4. Confira se propriedades importantes foram preservadas
+
+</Step>
+
+</Steps>
+
+## Dicas para Iniciantes
+
+### Preparação do Arquivo
+
+Antes de fazer upload:
+
+✅ **Faça**:
+- Salve uma cópia do arquivo original
+- Verifique se o arquivo abre normalmente no software nativo
+- Remova elementos desnecessários para reduzir tamanho
+- Use a última versão salva (sem erros)
+
+❌ **Evite**:
+- Arquivos corrompidos ou com erros
+- Modelos extremamente complexos na primeira vez
+- Arquivos de versões muito antigas dos softwares
+
+### Durante a Conversão
+
+✅ **Faça**:
+- Mantenha a aba do navegador aberta
+- Aguarde pacientemente (pode demorar alguns minutos)
+- Observe as mensagens de status
+- Anote qualquer erro que aparecer
+
+❌ **Evite**:
+- Clicar múltiplas vezes no botão de conversão
+- Fechar o navegador durante o processo
+- Fazer upload de outro arquivo enquanto um está processando
+
+### Após a Conversão
+
+✅ **Faça**:
+- Valide o IFC gerado
+- Teste em pelo menos um software compatível
+- Guarde uma cópia de backup
+- Documente eventuais problemas encontrados
+
+❌ **Evite**:
+- Deletar o arquivo original imediatamente
+- Compartilhar IFC sem validar primeiro
+- Assumir que tudo foi convertido perfeitamente sem verificar
+
+## Entendendo o Progresso
+
+### Indicadores Visuais
+
+O sistema fornece múltiplos indicadores:
+
+```typescript
+// Tipos de feedback durante conversão
+interface ProgressIndicators {
+  progressBar: {
+    type: "percentage",
+    range: "0-100%",
+    color: "blue → green (quando completo)"
+  },
+  statusMessages: {
+    type: "text",
+    examples: [
+      "Uploading file...",
+      "Processing conversion...",
+      "Download ready!"
+    ]
+  },
+  websocketStatus: {
+    type: "icon",
+    states: {
+      connected: "🟢 Green circle",
+      connecting: "🟡 Yellow circle",
+      disconnected: "🔴 Red circle"
+    }
+  }
+}
+```
+
+### Mensagens Comuns
+
+| Mensagem | Significado | Ação |
+|----------|-------------|------|
+| "File uploaded successfully" | Upload completo | Aguarde conversão |
+| "Converting model..." | Processando | Aguarde (normal demorar) |
+| "Conversion completed!" | Sucesso! | Baixe o arquivo |
+| "Error: Invalid file format" | Arquivo errado | Use formato correto |
+| "Error: File too large" | Arquivo muito grande | Reduza tamanho |
+| "WebSocket connected" | Conexão ativa | Tudo OK |
+| "WebSocket disconnected" | Sem conexão | Verifique internet |
+
+## Resolução Rápida de Problemas
+
+### Upload Falha
+
+**Possíveis causas**:
+1. Arquivo muito grande (> 100MB)
+2. Formato incorreto
+3. Conexão lenta
+4. Arquivo corrompido
+
+**Soluções**:
+- Verifique o tamanho do arquivo
+- Confirme a extensão (.rvt, .pln, .ifc)
+- Tente novamente com internet melhor
+- Abra o arquivo no software nativo primeiro
+
+### Conversão Trava
+
+**Possíveis causas**:
+1. Arquivo muito complexo
+2. Servidor ocupado
+3. Timeout de rede
+4. Problema no arquivo
+
+**Soluções**:
+- Aguarde até 10 minutos (arquivos grandes demoram)
+- Recarregue a página (F5) e tente novamente
+- Simplifique o modelo se possível
+- Entre em contato com suporte se persistir
+
+### Download Não Inicia
+
+**Possíveis causas**:
+1. Bloqueio do navegador
+2. Pasta de downloads cheia
+3. Erro na conversão
+4. Permissões de arquivo
+
+**Soluções**:
+- Verifique configurações de download do navegador
+- Libere espaço em disco
+- Veja se há mensagem de erro
+- Tente em outro navegador
+
+## Próximos Passos
+
+Agora que você fez sua primeira conversão:
+
+<Cards>
+  <Card
+    title="Conversão de Arquivos"
+    description="Explore todos os tipos de conversão disponíveis"
+    href="/docs/user-guide/file-conversion"
+  />
+  <Card
+    title="Validação de IFC"
+    description="Aprenda a verificar a qualidade dos arquivos"
+    href="/docs/user-guide/validation"
+  />
+  <Card
+    title="Solução de Problemas"
+    description="Guia completo para resolver erros comuns"
+    href="/docs/user-guide/troubleshooting"
+  />
+</Cards>
+
+---
+
+**Dica**: Pratique com arquivos pequenos primeiro para se familiarizar com o sistema antes de processar projetos grandes e importantes!
