@@ -291,11 +291,17 @@ plugin_ws_server = PluginWebSocketServer(
     node_ws_client=ws_client,
     job_event_handler=_handle_plugin_job_event,
 )
+if hasattr(app, "before_serving"):
 
+    @app.before_serving
+    def _bootstrap_background_services() -> None:
+        _ensure_background_services()
 
-@app.before_first_request
-def _bootstrap_background_services() -> None:
-    _ensure_background_services()
+else:
+
+    @app.before_request
+    def _bootstrap_background_services() -> None:  # pragma: no cover - legacy hook
+        _ensure_background_services()
 
 
 @app.route('/health', methods=['GET'])
