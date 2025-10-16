@@ -339,7 +339,7 @@ namespace IfcToRevitConverter
 
         public Func<string, Task> OnMessageReceived { get; set; }
 
-        public WebSocketServer(string url = "http://localhost:8080/")
+        public WebSocketServer(string url = "http://localhost:8082/")
         {
             _url = url;
             _connectedClients = new List<WebSocket>();
@@ -507,8 +507,8 @@ namespace IfcToRevitConverter
     /// </summary>
     public static class IfcConverterConfig
     {
-        public static string WebSocketServerUrl { get; set; } = "ws://localhost:3000/ws";
-        public static string InternalWebSocketUrl { get; set; } = "http://localhost:8080/";
+        public static string WebSocketServerUrl { get; set; } = "ws://localhost:8082/ws";
+        public static string InternalWebSocketUrl { get; set; } = "http://localhost:8082/";
         public static string DefaultIfcPath { get; set; } = @"C:\Users\Matheus\Desktop\example.ifc";
         public static bool UseWebSocket { get; set; } = true;
         public static bool UseInternalServer { get; set; } = true;
