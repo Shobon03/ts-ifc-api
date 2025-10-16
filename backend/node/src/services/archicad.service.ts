@@ -56,9 +56,27 @@ export async function checkArchicadPythonServiceConnection(
       },
     );
 
-    return (
-      status === 200 && data.status === 'healthy' && data.archicad_connected
-    );
+    if (status !== 200) {
+      return false;
+    }
+
+    const serviceStatus = (data?.status || '').toLowerCase();
+    const archicadPluginStatus =
+      data?.pluginWebSockets?.archicad || data?.archicad;
+
+    const serviceOnline = ['ok', 'healthy'].includes(serviceStatus);
+    const pluginOnline = archicadPluginStatus === 'connected';
+
+    if (serviceOnline && pluginOnline) {
+      wsManager.updateProgress(
+        jobId,
+        25,
+        ConversionStatus.UPLOADING,
+        'Archicad bridge reachable',
+      );
+    }
+
+    return serviceOnline && pluginOnline;
   } catch (error) {
     console.error(
       `Error connecting to Archicad Python service: ${error.message}`,
@@ -79,7 +97,7 @@ export async function sendFileToArchicadPythonServiceWS(
   file: Buffer,
   filename: string,
   jobId: string,
-): Promise<Buffer> {
+): Promise<void> {
   try {
     wsManager.updateProgress(
       jobId,
@@ -102,43 +120,41 @@ export async function sendFileToArchicadPythonServiceWS(
 
     wsManager.updateProgress(
       jobId,
-      50,
+      40,
       ConversionStatus.PROCESSING,
-      'File sent, waiting for conversion',
+      'File sent to Archicad bridge, awaiting plugin confirmation',
     );
 
-    const { data, status } = await axios.post(
+    const response = await axios.post(
       `${PYTHON_API_CONNECTION_URL}/convert/archicad-to-ifc`,
       formData,
       {
         headers: {
           ...formData.getHeaders(),
         },
-        responseType: 'arraybuffer',
-        timeout: 300000, // 5 minutes timeout for conversion
+        responseType: 'json',
+        timeout: 120000,
+        validateStatus: (code) => code >= 200 && code < 400,
       },
     );
 
-    if (status !== 200) {
+    if (response.status >= 300) {
       throw new Error(
-        `Error from Archicad Python service: ${status} -> ${data.error || ''}`,
+        `Unexpected response from Archicad Python service: ${response.status}`,
       );
     }
 
-    wsManager.updateProgress(
-      jobId,
-      100,
-      ConversionStatus.COMPLETED,
-      'Conversion completed',
-    );
+    const message =
+      response.data?.message || 'Conversion dispatched to Archicad plugin';
 
-    return Buffer.from(data);
+    wsManager.updateProgress(jobId, 50, ConversionStatus.PROCESSING, message, {
+      pythonJobId: response.data?.jobId,
+      downloadUrl: response.data?.downloadUrl,
+    });
   } catch (error) {
     wsManager.handleJobError(
       jobId,
       `Conversion failed during upload: ${error.message}`,
     );
-
-    return null;
   }
 }

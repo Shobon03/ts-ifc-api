@@ -54,8 +54,10 @@ async function main(): Promise<void> {
       host,
     });
 
-    app.log.info(`Server is running at http://localhost:3000`);
-    app.log.info(`API documentation available at http://localhost:3000/docs`);
+    app.log.info(`Server is running at http://localhost:${port}`);
+    app.log.info(
+      `API documentation available at http://localhost:${port}/docs`,
+    );
   } catch (err) {
     console.error(err);
     handleGracefulShutdown(1);
