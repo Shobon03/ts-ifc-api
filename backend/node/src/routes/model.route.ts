@@ -18,8 +18,14 @@
 import type { MultipartFile, MultipartValue } from '@fastify/multipart';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { promises as fs } from 'fs';
+import { basename, extname } from 'path';
 import z from 'zod';
-import { sendFileToArchicadPythonServiceWS } from '../services/archicad.service';
+import {
+  sendFileToArchicadPythonServiceWS,
+  sendIfcToArchicadPythonServiceWS,
+} from '../services/archicad.service';
+import { sendFileToRevitPythonServiceWS } from '../services/revit.service';
 import { convertRvtToIfcWS } from '../services/forge.service';
 import { IfcValidator } from '../services/ifc.service';
 import { BIMFileExportType } from '../types/formats';
@@ -214,24 +220,91 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
 
   app.route({
     method: 'post',
-    url: `${BASE_URL}/convert`,
+    url: `${BASE_URL}/convert-from-ifc`,
     schema: {
-      consumes: ['multipart/form-data'],
-      description: 'Endpoint to convert a model file to another format',
+      description: 'Convert IFC file to Revit (RVT) or Archicad (PLN) format',
       tags: TAGS,
       body: z.object({
-        file: bimFileValidation,
+        filePath: z.string().min(1, 'File path is required'),
+        resultType: z.enum(['rvt', 'pln']).describe('Target format: rvt (Revit) or pln (Archicad)'),
       }),
       response: {
-        200: z.object({ message: z.string() }),
+        200: z.object({
+          message: z.string(),
+          jobId: z.string(),
+          websocketUrl: z.string(),
+        }),
+        400: z.object({
+          error: z.string(),
+        }),
+        500: z.object({
+          error: z.string(),
+        }),
       },
     },
     handler: async (request, reply) => {
-      const { file } = request.body;
+      const { filePath, resultType } = request.body;
 
-      // TODO...
+      try {
+        // Validate file path exists and is an IFC file
+        try {
+          await fs.access(filePath);
+        } catch {
+          return reply.status(400).send({
+            error: `File not found: ${filePath}`,
+          });
+        }
 
-      return reply.status(200).send({ message: 'Model conversion endpoint' });
+        const ext = extname(filePath).toLowerCase();
+        if (ext !== '.ifc') {
+          return reply.status(400).send({
+            error: 'Only IFC files can be converted. File must have .ifc extension',
+          });
+        }
+
+        // Generate job ID
+        const jobId = wsManager.createJobWithoutSocket(basename(filePath));
+
+        // Route to appropriate conversion service based on target format
+        if (resultType === 'rvt') {
+          // Send to Revit plugin via Python (IFC to RVT)
+          sendFileToRevitPythonServiceWS(filePath, basename(filePath), jobId).catch(
+            (error) => {
+              console.error(`Revit conversion failed for job ${jobId}:`, error);
+              wsManager.handleJobError(jobId, (error as Error).message);
+            },
+          );
+
+          return reply.status(200).send({
+            message: 'IFC to RVT conversion started',
+            jobId,
+            websocketUrl: `/models/ws/conversion`,
+          });
+        } else if (resultType === 'pln') {
+          // Send to Archicad plugin via Python (IFC to PLN)
+          sendIfcToArchicadPythonServiceWS(filePath, basename(filePath), jobId).catch(
+            (error) => {
+              console.error(`Archicad conversion failed for job ${jobId}:`, error);
+              wsManager.handleJobError(jobId, (error as Error).message);
+            },
+          );
+
+          return reply.status(200).send({
+            message: 'IFC to PLN conversion started',
+            jobId,
+            websocketUrl: `/models/ws/conversion`,
+          });
+        }
+
+        return reply.status(400).send({
+          error: 'Invalid result type',
+        });
+      } catch (error) {
+        console.error('Error in convert endpoint:', error);
+        return reply.status(500).send({
+          error: error instanceof Error ? error.message : 'Internal server error',
+        });
+      }
     },
   });
 

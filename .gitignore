@@ -564,3 +564,6 @@ CLAUDE.md
 
 Build/
 IFC_to_ArchicadFix.grc
+
+**/public/conversion/**/
+!**/public/conversion/.gitkeep

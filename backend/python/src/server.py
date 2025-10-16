@@ -375,16 +375,30 @@ def convert_archicad_to_ifc():
         staging_strategy: str
 
         if file_path_field:
+            # Handle both Windows and Unix paths
             expanded = os.path.expandvars(file_path_field)
             candidate = Path(expanded).expanduser()
-            resolved_candidate = candidate.resolve(strict=False)
-            if not resolved_candidate.exists() or not resolved_candidate.is_file():
-                return jsonify({'error': f"Provided filePath does not exist or is not a file: {resolved_candidate}"}), 400
+
+            try:
+                resolved_candidate = candidate.resolve(strict=False)
+            except (OSError, RuntimeError) as e:
+                logger.warning(f"Failed to resolve path {candidate}: {e}")
+                resolved_candidate = candidate.absolute()
+
+            logger.info(f"Checking file path: {resolved_candidate}")
+
+            if not resolved_candidate.exists():
+                return jsonify({'error': f"Provided filePath does not exist: {resolved_candidate}"}), 400
+
+            if not resolved_candidate.is_file():
+                return jsonify({'error': f"Provided filePath is not a file: {resolved_candidate}"}), 400
+
             if resolved_candidate.suffix.lower() != '.pln':
                 return jsonify({'error': 'Invalid file format. Only .pln files are accepted'}), 400
+
             input_path = str(resolved_candidate)
             original_filename = request.form.get('originalFilename') or resolved_candidate.name or f"{job_id}.pln"
-            staging_strategy = staging_hint or 'external-path'
+            staging_strategy = staging_hint or 'node-staging'
         else:
             if not incoming_file or not incoming_file.filename:
                 return jsonify({'error': 'No file provided'}), 400
@@ -396,7 +410,19 @@ def convert_archicad_to_ifc():
             staging_strategy = staging_hint or 'direct-upload'
 
         download_name = secure_filename(f"{Path(original_filename).stem or job_id}.ifc")
-        output_path = str(_output_path(job_id, download_name))
+
+        # Check if Node.js provided an outputPath
+        requested_output_path = request.form.get('outputPath')
+        if requested_output_path:
+            output_path = str(Path(requested_output_path).resolve(strict=False))
+            # Ensure the output directory exists
+            try:
+                Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+            except Exception as exc:
+                logger.warning(f"Could not ensure output directory for job {job_id}: {exc}")
+        else:
+            output_path = str(_output_path(job_id, download_name))
+
         storage_root = str(_job_directory(job_id))
 
         if not plugin_ws_server.is_plugin_connected(PluginType.ARCHICAD):
@@ -619,6 +645,169 @@ def trigger_revit_conversion():
 
     except Exception as e:
         error_msg = f"Error triggering Revit conversion: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({'error': error_msg}), 500
+
+@app.route('/convert/ifc-to-archicad', methods=['POST'])
+def convert_ifc_to_archicad():
+    """
+    Dispatch IFC→PLN conversion to the Archicad desktop plugin via WebSocket.
+
+    Accepts multipart/form-data with:
+    - filePath: Path to the IFC file accessible to the plugin (required)
+    - outputPath (optional): Desired output path for the resulting .pln
+    - jobId (optional): Job ID for progress tracking
+    - originalFilename (optional): Original filename for metadata
+
+    Returns a JSON payload containing job metadata.
+    """
+    try:
+        _ensure_background_services()
+
+        raw_file_path = request.form.get('filePath') or ''
+        file_path_field = raw_file_path.strip() or None
+
+        if not file_path_field:
+            return jsonify({'error': 'filePath is required'}), 400
+
+        job_id = request.form.get('jobId') or _generate_job_id('archicad-ifc')
+
+        # Handle both Windows and Unix paths
+        expanded = os.path.expandvars(file_path_field)
+        candidate = Path(expanded).expanduser()
+
+        try:
+            resolved_candidate = candidate.resolve(strict=False)
+        except (OSError, RuntimeError) as e:
+            logger.warning(f"Failed to resolve path {candidate}: {e}")
+            resolved_candidate = candidate.absolute()
+
+        logger.info(f"Checking IFC file path: {resolved_candidate}")
+
+        if not resolved_candidate.exists():
+            return jsonify({'error': f"Provided filePath does not exist: {resolved_candidate}"}), 400
+
+        if not resolved_candidate.is_file():
+            return jsonify({'error': f"Provided filePath is not a file: {resolved_candidate}"}), 400
+
+        if resolved_candidate.suffix.lower() != '.ifc':
+            return jsonify({'error': 'Invalid file format. Only .ifc files are accepted'}), 400
+
+        ifc_path = str(resolved_candidate)
+        original_filename = request.form.get('originalFilename') or resolved_candidate.name or f"{job_id}.ifc"
+        download_name = secure_filename(f"{Path(original_filename).stem or job_id}.pln")
+
+        # Check if Node.js provided an outputPath
+        requested_output_path = request.form.get('outputPath')
+        if requested_output_path:
+            output_path = str(Path(requested_output_path).resolve(strict=False))
+            # Ensure the output directory exists
+            try:
+                Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+            except Exception as exc:
+                logger.warning(f"Could not ensure output directory for job {job_id}: {exc}")
+        else:
+            output_path = str(_output_path(job_id, download_name))
+
+        storage_root = str(_job_directory(job_id))
+
+        if not plugin_ws_server.is_plugin_connected(PluginType.ARCHICAD):
+            error_msg = 'Archicad plugin is not connected to Python bridge'
+            logger.error(error_msg)
+            _persist_job(job_id, {
+                'plugin': PluginType.ARCHICAD.value,
+                'status': 'error',
+                'progress': 0,
+                'message': error_msg,
+                'ifcPath': ifc_path,
+            })
+            ws_client.send_error(job_id, error_msg)
+            return jsonify({'error': error_msg, 'jobId': job_id}), 503
+
+        logger.info(f"Dispatching IFC→PLN (Archicad) conversion for job {job_id}")
+
+        _persist_job(job_id, {
+            'plugin': PluginType.ARCHICAD.value,
+            'status': 'queued',
+            'progress': 0,
+            'message': 'Using IFC file path from Node backend',
+            'originalFilename': original_filename,
+            'downloadName': download_name,
+            'storagePath': storage_root,
+            'ifcPath': ifc_path,
+            'stagingStrategy': 'file-path',
+        })
+
+        ws_client.send_progress(
+            job_id,
+            10,
+            'uploading',
+            'IFC file path registered on Python bridge',
+            details={
+                'ifcPath': ifc_path,
+                'stagingStrategy': 'file-path',
+            },
+        )
+
+        _persist_job(job_id, {
+            'status': 'uploading',
+            'progress': 10,
+            'message': 'IFC file path registered on Python bridge',
+            'ifcPath': ifc_path,
+            'stagingStrategy': 'file-path',
+        })
+
+        # Send IFC path as input, PLN path as output to Archicad
+        dispatched = plugin_ws_server.start_archicad_conversion(
+            job_id=job_id,
+            ifc_path=ifc_path,  # Input is IFC
+            output_path=output_path,  # Output is PLN
+        )
+
+        if not dispatched:
+            error_msg = 'Failed to dispatch IFC to PLN conversion command to Archicad plugin'
+            logger.error(error_msg)
+            _persist_job(job_id, {
+                'status': 'error',
+                'progress': 0,
+                'message': error_msg,
+            })
+            ws_client.send_error(job_id, error_msg)
+            return jsonify({'error': error_msg, 'jobId': job_id}), 500
+
+        ws_client.send_progress(
+            job_id,
+            20,
+            'queued',
+            'IFC to PLN conversion request accepted by Python bridge',
+            details={
+                'ifcPath': ifc_path,
+                'outputPath': output_path,
+                'stagingStrategy': 'file-path',
+            },
+        )
+
+        _persist_job(job_id, {
+            'status': 'processing',
+            'progress': 20,
+            'message': 'Awaiting IFC to PLN conversion on Archicad plugin',
+            'ifcPath': ifc_path,
+            'outputPath': output_path,
+            'downloadPath': output_path,
+            'downloadName': download_name,
+            'storagePath': storage_root,
+            'stagingStrategy': 'file-path',
+        })
+
+        return jsonify({
+            'success': True,
+            'jobId': job_id,
+            'downloadUrl': f"/jobs/{job_id}/download",
+            'message': 'IFC to PLN conversion dispatched to Archicad plugin'
+        }), 202
+
+    except Exception as e:
+        error_msg = f"Server error: {str(e)}"
         logger.error(error_msg)
         return jsonify({'error': error_msg}), 500
 

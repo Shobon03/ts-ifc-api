@@ -15,12 +15,14 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { promises as fs } from 'node:fs';
-import { basename, extname, join, resolve as resolvePath } from 'node:path';
-import { tmpdir } from 'node:os';
 import axios from 'axios';
 import FormData from 'form-data';
 import { ConversionStatus, wsManager } from '../ws/websocket';
+import {
+  cleanupStagedFile,
+  prepareOutputPath,
+  stageFile,
+} from '../utils/file-staging';
 
 /**
  * Service to interact with Archicad via a Python intermediary.
@@ -35,37 +37,6 @@ if (process.env.APP_ENV === 'production') {
   const port = process.env.PYTHON_SERVICE_PORT || '5000';
 
   PYTHON_API_CONNECTION_URL = `http://${host}:${port}`;
-}
-
-const ARCHICAD_STAGING_ROOT =
-  process.env.ARCHICAD_STAGING_DIR ||
-  join(tmpdir(), 'ts-ifc-api', 'archicad-staging');
-
-function sanitizeComponent(value: string): string {
-  return value.replace(/[^a-zA-Z0-9._-]/g, '_');
-}
-
-async function stagePlnFile(
-  jobId: string,
-  originalName: string,
-  buffer: Buffer,
-): Promise<{ stagedPath: string; size: number }> {
-  const extension = extname(originalName) || '.pln';
-  const baseName = basename(originalName, extension) || 'model';
-  const safeBase = sanitizeComponent(baseName) || 'model';
-  const safeJobSegment = sanitizeComponent(jobId) || 'job';
-  const safeFilename = `${safeBase}${extension.toLowerCase()}`;
-  const jobDir = join(ARCHICAD_STAGING_ROOT, safeJobSegment);
-
-  await fs.mkdir(jobDir, { recursive: true });
-
-  const stagedPath = join(jobDir, safeFilename);
-  await fs.writeFile(stagedPath, buffer);
-
-  return {
-    stagedPath: resolvePath(stagedPath),
-    size: buffer.byteLength,
-  };
 }
 
 /**
@@ -100,6 +71,14 @@ export async function checkArchicadPythonServiceConnection(
 
     const serviceOnline = ['ok', 'healthy'].includes(serviceStatus);
     const pluginOnline = archicadPluginStatus === 'connected';
+
+    console.log('Health check response:', {
+      serviceStatus,
+      archicadPluginStatus,
+      serviceOnline,
+      pluginOnline,
+      fullData: data,
+    });
 
     if (serviceOnline && pluginOnline) {
       wsManager.updateProgress(
@@ -142,7 +121,10 @@ export async function sendFileToArchicadPythonServiceWS(
       'Preparing file for Archicad service',
     );
 
-    stagedFile = await stagePlnFile(jobId, filename, file);
+    stagedFile = await stageFile(jobId, filename, file);
+
+    // Prepare the output path where Archicad will save the IFC file
+    const outputPath = await prepareOutputPath(jobId, filename, '.ifc');
 
     wsManager.updateProgress(
       jobId,
@@ -150,9 +132,10 @@ export async function sendFileToArchicadPythonServiceWS(
       ConversionStatus.UPLOADING,
       'File staged for Archicad conversion',
       {
-        stagingStrategy: 'node-temp',
+        stagingStrategy: 'node-staging',
         stagedPath: stagedFile.stagedPath,
         stagedBytes: stagedFile.size,
+        outputPath,
       },
     );
 
@@ -170,8 +153,9 @@ export async function sendFileToArchicadPythonServiceWS(
       formData.append('filePath', stagedFile.stagedPath);
       formData.append('stagedBytes', String(stagedFile.size));
     }
+    formData.append('outputPath', outputPath);
     formData.append('originalFilename', filename);
-    formData.append('stagingStrategy', 'node-temp');
+    formData.append('stagingStrategy', 'node-staging');
 
     wsManager.updateProgress(
       jobId,
@@ -180,8 +164,9 @@ export async function sendFileToArchicadPythonServiceWS(
       'File path submitted to Archicad bridge',
       stagedFile
         ? {
-            stagingStrategy: 'node-temp',
+            stagingStrategy: 'node-staging',
             stagedPath: stagedFile.stagedPath,
+            outputPath,
           }
         : undefined,
     );
@@ -211,8 +196,9 @@ export async function sendFileToArchicadPythonServiceWS(
     wsManager.updateProgress(jobId, 50, ConversionStatus.PROCESSING, message, {
       pythonJobId: response.data?.jobId,
       downloadUrl: response.data?.downloadUrl,
-      stagingStrategy: 'node-temp',
+      stagingStrategy: 'node-staging',
       stagedPath: stagedFile?.stagedPath,
+      outputPath,
     });
   } catch (error) {
     wsManager.handleJobError(
@@ -221,13 +207,108 @@ export async function sendFileToArchicadPythonServiceWS(
     );
 
     if (stagedFile) {
-      try {
-        await fs.unlink(stagedFile.stagedPath);
-      } catch (cleanupError) {
-        console.warn(
-          `Failed to remove staged file ${stagedFile.stagedPath}: ${cleanupError instanceof Error ? cleanupError.message : cleanupError}`,
-        );
-      }
+      await cleanupStagedFile(stagedFile.stagedPath);
     }
+  }
+}
+
+/**
+ * Sends an IFC file path to the Archicad Python service for conversion to PLN.
+ * The IFC file should already exist on disk (e.g., from a previous conversion).
+ * Updates the WebSocket with the conversion progress.
+ * @param ifcFilePath The absolute path to the IFC file on disk
+ * @param filename The name of the file being sent
+ * @param jobId The job ID for tracking progress via WebSocket
+ * @returns A promise that resolves when the conversion is dispatched
+ */
+export async function sendIfcToArchicadPythonServiceWS(
+  ifcFilePath: string,
+  filename: string,
+  jobId: string,
+): Promise<void> {
+  try {
+    wsManager.updateProgress(
+      jobId,
+      10,
+      ConversionStatus.UPLOADING,
+      'Preparing IFC file for Archicad service',
+    );
+
+    // Prepare the output path where Archicad will save the PLN file
+    const outputPath = await prepareOutputPath(jobId, filename, '.pln');
+
+    wsManager.updateProgress(
+      jobId,
+      15,
+      ConversionStatus.UPLOADING,
+      'IFC file path prepared for Archicad conversion',
+      {
+        stagingStrategy: 'file-path',
+        ifcPath: ifcFilePath,
+        outputPath,
+      },
+    );
+
+    // Check if API is healthy
+    const isHealthy = await checkArchicadPythonServiceConnection(jobId);
+
+    if (!isHealthy) {
+      throw new Error('Archicad Python service is not healthy or reachable.');
+    }
+
+    // Send file path with job ID for tracking
+    const formData = new FormData();
+    formData.append('jobId', jobId);
+    formData.append('filePath', ifcFilePath);
+    formData.append('outputPath', outputPath);
+    formData.append('originalFilename', filename);
+    formData.append('stagingStrategy', 'file-path');
+
+    wsManager.updateProgress(
+      jobId,
+      40,
+      ConversionStatus.PROCESSING,
+      'IFC file path submitted to Archicad bridge',
+      {
+        stagingStrategy: 'file-path',
+        ifcPath: ifcFilePath,
+        outputPath,
+      },
+    );
+
+    const response = await axios.post(
+      `${PYTHON_API_CONNECTION_URL}/convert/ifc-to-archicad`,
+      formData,
+      {
+        headers: {
+          ...formData.getHeaders(),
+        },
+        responseType: 'json',
+        timeout: 120000,
+        validateStatus: (code) => code >= 200 && code < 400,
+      },
+    );
+
+    if (response.status >= 300) {
+      throw new Error(
+        `Unexpected response from Archicad Python service: ${response.status}`,
+      );
+    }
+
+    const message =
+      response.data?.message || 'IFC to PLN conversion dispatched to Archicad plugin';
+
+    wsManager.updateProgress(jobId, 50, ConversionStatus.PROCESSING, message, {
+      pythonJobId: response.data?.jobId,
+      downloadUrl: response.data?.downloadUrl,
+      stagingStrategy: 'file-path',
+      ifcPath: ifcFilePath,
+      outputPath,
+    });
+  } catch (error) {
+    wsManager.handleJobError(
+      jobId,
+      `Archicad IFC to PLN conversion failed: ${error.message}`,
+    );
   }
 }

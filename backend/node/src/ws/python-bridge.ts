@@ -107,6 +107,18 @@ class PythonBridgeManager {
           );
           break;
 
+        case 'plugin_conversion_completed':
+          this.handlePluginConversionCompleted(message);
+          break;
+
+        case 'plugin_conversion_failed':
+          this.handlePluginConversionFailed(message);
+          break;
+
+        case 'plugin_status':
+          this.handlePluginStatus(message);
+          break;
+
         case 'pong':
           // Heartbeat response
           break;
@@ -208,6 +220,53 @@ class PythonBridgeManager {
         error: 'Job not found',
       });
     }
+  }
+
+  /**
+   * Handles plugin conversion completion notification
+   */
+  private handlePluginConversionCompleted(message: PythonMessage): void {
+    if (!message.jobId) {
+      console.warn('Plugin conversion completed missing jobId');
+      return;
+    }
+
+    console.log(`✓ Plugin conversion completed for job ${message.jobId}`);
+
+    const result = (message as any).result || {};
+
+    wsManager.completeJob(message.jobId, {
+      downloadUrl: result.downloadUrl,
+      fileName: result.fileName,
+      fileSize: result.fileSize,
+    });
+  }
+
+  /**
+   * Handles plugin conversion failure notification
+   */
+  private handlePluginConversionFailed(message: PythonMessage): void {
+    if (!message.jobId) {
+      console.warn('Plugin conversion failed missing jobId');
+      return;
+    }
+
+    console.error(`✗ Plugin conversion failed for job ${message.jobId}`);
+
+    wsManager.handleJobError(
+      message.jobId,
+      (message as any).error || 'Plugin conversion failed',
+    );
+  }
+
+  /**
+   * Handles plugin status updates
+   */
+  private handlePluginStatus(message: PythonMessage): void {
+    const plugin = (message as any).plugin;
+    const status = (message as any).status;
+
+    console.log(`Plugin ${plugin} status: ${status}`);
   }
 
   /**

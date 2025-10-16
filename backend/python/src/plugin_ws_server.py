@@ -174,7 +174,8 @@ class PluginWebSocketServer:
 
         while not self._stop_requested:
             try:
-                async with websockets.connect(endpoint, ping_interval=20, ping_timeout=20) as websocket:
+                # Increase ping interval/timeout to prevent disconnection during long operations
+                async with websockets.connect(endpoint, ping_interval=60, ping_timeout=300) as websocket:
                     connection = PluginConnection(
                         plugin_type=plugin,
                         websocket=websocket,
@@ -201,15 +202,28 @@ class PluginWebSocketServer:
             except asyncio.CancelledError:
                 break
             except WebSocketException as exc:
-                logger.warning(
-                    "WebSocket error while talking to %s plugin at %s: %s",
+                logger.error(
+                    "Cannot connect to WebSocket client on %s plugin at %s: %s",
+                    plugin.value,
+                    endpoint,
+                    exc,
+                )
+            except ConnectionRefusedError:
+                logger.error(
+                    "Cannot connect to WebSocket client on %s plugin at %s: Connection refused (plugin may not be running)",
+                    plugin.value,
+                    endpoint,
+                )
+            except OSError as exc:
+                logger.error(
+                    "Cannot connect to WebSocket client on %s plugin at %s: %s",
                     plugin.value,
                     endpoint,
                     exc,
                 )
             except Exception as exc:  # pragma: no cover - defensive logging
-                logger.exception(
-                    "Unexpected error while connecting to %s plugin at %s: %s",
+                logger.error(
+                    "Cannot connect to WebSocket client on %s plugin at %s: %s",
                     plugin.value,
                     endpoint,
                     exc,
@@ -279,6 +293,8 @@ class PluginWebSocketServer:
         connection: PluginConnection,
         raw_message: str,
     ) -> None:
+        logger.info(f"Received from {connection.plugin_type.value} plugin: {raw_message}")
+
         try:
             message = json.loads(raw_message)
         except json.JSONDecodeError:
@@ -289,10 +305,11 @@ class PluginWebSocketServer:
         job_id = message.get("jobId")
         connection.last_heartbeat = time.time()
 
-        logger.debug(
-            "Plugin %s -> Python: %s",
+        logger.info(
+            "Plugin %s -> Python: message_type=%s, jobId=%s",
             connection.plugin_type.value,
             message_type,
+            job_id,
         )
 
         if message_type in {"status", "plugin_status"}:
@@ -461,19 +478,28 @@ class PluginWebSocketServer:
     def start_archicad_conversion(
         self,
         job_id: str,
-        pln_path: str,
+        pln_path: Optional[str] = None,
+        ifc_path: Optional[str] = None,
         output_path: Optional[str] = None,
     ) -> bool:
+        if not pln_path and not ifc_path:
+            logger.error("Either pln_path or ifc_path must be provided for Archicad conversion")
+            return False
+
+        if pln_path and ifc_path:
+            logger.error("Only one of pln_path or ifc_path should be provided for Archicad conversion")
+            return False
+
         payload: Dict[str, Any] = {
-            "action": "start_conversion",
-            "job_id": job_id,
-            "file_path": pln_path,
             "command": "start_conversion",
             "jobId": job_id,
-            "plnPath": pln_path,
         }
+
+        if ifc_path:
+            payload["ifcPath"] = ifc_path
+        if pln_path:
+            payload["plnPath"] = pln_path
         if output_path:
-            payload["output_path"] = output_path
             payload["outputPath"] = output_path
         return self._send_command(PluginType.ARCHICAD, payload)
 
@@ -536,10 +562,16 @@ class PluginWebSocketServer:
 
     async def _send_json(
         self,
-    websocket: WebSocketClientProtocol,
+        websocket: WebSocketClientProtocol,
         payload: Dict[str, Any],
     ) -> None:
-        await websocket.send(json.dumps(payload))
+        # Use ensure_ascii=False and replace double backslashes for Windows paths
+        json_payload = json.dumps(payload, ensure_ascii=False)
+        # Convert double backslashes to single for Windows paths
+        # This is needed because the Archicad plugin expects single backslashes
+        json_payload = json_payload.replace('\\\\', '\\')
+        logger.info(f"Sending to plugin: {json_payload}")
+        await websocket.send(json_payload)
 
     def _resolve_plugin_type(self, path: str) -> Optional[PluginType]:
         normalised = (path or "").strip("/ ").lower()
