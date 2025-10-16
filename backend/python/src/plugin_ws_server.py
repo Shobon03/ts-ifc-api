@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import threading
 import time
 from dataclasses import dataclass, field
@@ -27,8 +28,12 @@ from enum import Enum
 from typing import Any, Callable, Dict, Optional
 
 import websockets
-from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
-from websockets.server import WebSocketServerProtocol
+from websockets.client import WebSocketClientProtocol
+from websockets.exceptions import (
+    ConnectionClosedError,
+    ConnectionClosedOK,
+    WebSocketException,
+)
 
 from websocket_client import NodeJSWebSocketClient
 
@@ -47,19 +52,17 @@ class PluginConnection:
     """Data container describing an active plugin WebSocket connection."""
 
     plugin_type: PluginType
-    websocket: WebSocketServerProtocol
+    websocket: WebSocketClientProtocol
+    endpoint: str
     version: Optional[str] = None
     last_heartbeat: float = field(default_factory=lambda: time.time())
 
 
 class PluginWebSocketServer:
-    """Hosts local WebSocket endpoints for desktop plugins.
+    """Maintains WebSocket bridges to desktop plugins that expose WS servers."""
 
-    The server runs in its own asyncio event loop (on a background thread) so it
-    can coexist with the synchronous Flask application. Incoming plugin
-    messages are normalised and forwarded to Node.js through the
-    `NodeJSWebSocketClient` so that the API keeps full control over job state.
-    """
+    RECONNECT_BASE_SECONDS = 1
+    RECONNECT_MAX_SECONDS = 30
 
     def __init__(
         self,
@@ -68,69 +71,84 @@ class PluginWebSocketServer:
         node_ws_client: NodeJSWebSocketClient,
         job_event_handler: Optional[Callable[[PluginType, Dict[str, Any]], None]] = None,
     ) -> None:
-        self._host = host
-        self._port = port
         self._node_ws = node_ws_client
         self._job_event_handler = job_event_handler
         self._connections: Dict[PluginType, PluginConnection] = {}
+        self._connection_tasks: Dict[PluginType, asyncio.Task[Any]] = {}
         self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._server: Optional[websockets.server.Serve] = None
         self._thread: Optional[threading.Thread] = None
+        self._stop_requested = False
+        self._lock = threading.Lock()
 
-    # ---------------------------------------------------------------------
+        default_host = host if host not in {"0.0.0.0", "::"} else "127.0.0.1"
+
+        archicad_url = os.getenv("ARCHICAD_PLUGIN_WS_URL")
+        if not archicad_url:
+            archicad_port = os.getenv("ARCHICAD_PLUGIN_WS_PORT") or "8081"
+            archicad_url = f"ws://{default_host}:{archicad_port}"
+
+        revit_url = os.getenv("REVIT_PLUGIN_WS_URL")
+        if not revit_url:
+            revit_port = os.getenv("REVIT_PLUGIN_WS_PORT") or "8082"
+            revit_url = f"ws://{default_host}:{revit_port}"
+
+        self._plugin_endpoints: Dict[PluginType, Optional[str]] = {
+            PluginType.ARCHICAD: archicad_url,
+            PluginType.REVIT: revit_url,
+        }
+
+    # ------------------------------------------------------------------
     # Lifecycle management
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     def start(self) -> None:
-        """Spawn the server loop on a daemon thread."""
-
         if self._thread and self._thread.is_alive():
-            logger.warning("Plugin WebSocket server already running")
+            logger.warning("Plugin WebSocket bridge already running")
             return
 
+        self._stop_requested = False
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
-        logger.info(
-            "Plugin WebSocket server thread initialised (listening on %s:%s)",
-            self._host,
-            self._port,
-        )
 
     def _run_loop(self) -> None:
-        """Initialise the asyncio event loop used by the WebSocket server."""
-
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
 
-        async def start_server() -> None:
-            logger.info(
-                "Starting plugin WebSocket server on ws://%s:%s", self._host, self._port
+        for plugin, endpoint in self._plugin_endpoints.items():
+            if not endpoint:
+                logger.info("No endpoint configured for %s plugin", plugin.value)
+                continue
+            logger.info("Plugin bridge connecting to %s at %s", plugin.value, endpoint)
+            task = self._loop.create_task(
+                self._maintain_connection(plugin, endpoint)
             )
-            self._server = await websockets.serve(
-                self._handle_connection,
-                self._host,
-                self._port,
-            )
-            await asyncio.Future()  # Run forever
+            self._connection_tasks[plugin] = task
 
         try:
-            self._loop.run_until_complete(start_server())
-        except Exception as exc:  # pragma: no cover - fatal error logging
-            logger.exception("Plugin WebSocket server failed: %s", exc)
+            self._loop.run_forever()
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.exception("Plugin WebSocket loop crashed: %s", exc)
         finally:
-            if self._loop and not self._loop.is_closed():
-                self._loop.close()
+            pending = asyncio.all_tasks(self._loop)
+            for task in pending:
+                task.cancel()
+            if pending:
+                self._loop.run_until_complete(
+                    asyncio.gather(*pending, return_exceptions=True)
+                )
+            self._loop.close()
 
     def stop(self) -> None:
-        """Gracefully stop the WebSocket server."""
-
         if not self._loop:
             return
 
+        self._stop_requested = True
+
         async def shutdown() -> None:
-            if self._server:
-                self._server.close()
-                await self._server.wait_closed()
-            # Close outstanding plugin connections
+            for task in list(self._connection_tasks.values()):
+                task.cancel()
+            self._connection_tasks.clear()
+
+            # Close active sockets
             await asyncio.gather(
                 *[
                     conn.websocket.close()
@@ -138,64 +156,123 @@ class PluginWebSocketServer:
                 ],
                 return_exceptions=True,
             )
+            self._connections.clear()
+
+            self._loop.stop()
 
         asyncio.run_coroutine_threadsafe(shutdown(), self._loop)
-        logger.info("Plugin WebSocket server shutdown initiated")
+        logger.info("Plugin WebSocket bridge shutdown requested")
 
-    # ---------------------------------------------------------------------
-    # WebSocket handlers
-    # ---------------------------------------------------------------------
-    async def _handle_connection(
-        self,
-        websocket: WebSocketServerProtocol,
-        path: str,
-    ) -> None:
-        plugin_type = self._resolve_plugin_type(path)
-        if not plugin_type:
-            await websocket.close(code=4000, reason="Unsupported plugin")
-            logger.warning("Rejected plugin connection on unknown path: %s", path)
-            return
+        if self._thread:
+            self._thread.join(timeout=5)
 
-        connection = PluginConnection(plugin_type=plugin_type, websocket=websocket)
-        self._connections[plugin_type] = connection
-        logger.info("%s plugin connected", plugin_type.value.capitalize())
+    # ------------------------------------------------------------------
+    # Connection management
+    # ------------------------------------------------------------------
+    async def _maintain_connection(self, plugin: PluginType, endpoint: str) -> None:
+        backoff = self.RECONNECT_BASE_SECONDS
+
+        while not self._stop_requested:
+            try:
+                async with websockets.connect(endpoint, ping_interval=20, ping_timeout=20) as websocket:
+                    connection = PluginConnection(
+                        plugin_type=plugin,
+                        websocket=websocket,
+                        endpoint=endpoint,
+                    )
+                    self._register_connection(connection)
+                    await self._send_json(
+                        websocket,
+                        {
+                            "type": "connection_ack",
+                            "plugin": plugin.value,
+                            "message": "Connected to Python bridge",
+                        },
+                    )
+
+                    try:
+                        async for raw in websocket:
+                            await self._handle_plugin_message(connection, raw)
+                    except (ConnectionClosedOK, ConnectionClosedError):
+                        logger.info("%s plugin disconnected", plugin.value)
+                    finally:
+                        self._unregister_connection(plugin)
+                        backoff = self.RECONNECT_BASE_SECONDS
+            except asyncio.CancelledError:
+                break
+            except WebSocketException as exc:
+                logger.warning(
+                    "WebSocket error while talking to %s plugin at %s: %s",
+                    plugin.value,
+                    endpoint,
+                    exc,
+                )
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.exception(
+                    "Unexpected error while connecting to %s plugin at %s: %s",
+                    plugin.value,
+                    endpoint,
+                    exc,
+                )
+
+            if self._stop_requested:
+                break
+
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, self.RECONNECT_MAX_SECONDS)
+
+        logger.info("Connection loop for %s plugin stopped", plugin.value)
+
+    def _register_connection(self, connection: PluginConnection) -> None:
+        with self._lock:
+            self._connections[connection.plugin_type] = connection
+
+        logger.info(
+            "%s plugin connected via %s",
+            connection.plugin_type.value.capitalize(),
+            connection.endpoint,
+        )
+
         self._emit_job_event(
-            plugin_type,
+            connection.plugin_type,
             {
                 "event": "plugin_connected",
-                "plugin": plugin_type.value,
+                "plugin": connection.plugin_type.value,
             },
         )
 
-        await self._send_json(
-            websocket,
+        self._node_ws.send_message(
             {
-                "type": "connection_ack",
-                "plugin": plugin_type.value,
-                "message": "Connected to Python bridge",
+                "type": "plugin_status",
+                "plugin": connection.plugin_type.value,
+                "status": "connected",
+                "message": f"Connected to {connection.endpoint}",
+            }
+        )
+
+    def _unregister_connection(self, plugin: PluginType) -> None:
+        removed: Optional[PluginConnection]
+        with self._lock:
+            removed = self._connections.pop(plugin, None)
+
+        if not removed:
+            return
+
+        self._emit_job_event(
+            plugin,
+            {
+                "event": "plugin_disconnected",
+                "plugin": plugin.value,
             },
         )
 
-        try:
-            async for raw in websocket:
-                await self._handle_plugin_message(connection, raw)
-        except (ConnectionClosedOK, ConnectionClosedError):
-            logger.info("%s plugin disconnected", plugin_type.value.capitalize())
-            self._emit_job_event(
-                plugin_type,
-                {
-                    "event": "plugin_disconnected",
-                    "plugin": plugin_type.value,
-                },
-            )
-        except Exception as exc:  # pragma: no cover - defensive logging
-            logger.exception(
-                "Error while handling %s plugin socket: %s",
-                plugin_type.value,
-                exc,
-            )
-        finally:
-            self._connections.pop(plugin_type, None)
+        self._node_ws.send_message(
+            {
+                "type": "plugin_status",
+                "plugin": plugin.value,
+                "status": "disconnected",
+            }
+        )
 
     async def _handle_plugin_message(
         self,
@@ -459,7 +536,7 @@ class PluginWebSocketServer:
 
     async def _send_json(
         self,
-        websocket: WebSocketServerProtocol,
+    websocket: WebSocketClientProtocol,
         payload: Dict[str, Any],
     ) -> None:
         await websocket.send(json.dumps(payload))
