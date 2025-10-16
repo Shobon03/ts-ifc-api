@@ -147,11 +147,11 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
       body: z.object({
         file: bimFileValidation,
         type: z.preprocess(
-          (file) => (file as MultipartValue).value,
+          (file) => (file as MultipartValue)?.value,
           z.enum(BIMFileExportType).optional().default(BIMFileExportType.IFC),
         ),
         socketId: z.preprocess(
-          (file) => (file as MultipartValue).value,
+          (file) => (file as MultipartValue)?.value,
           z.string().optional(),
         ),
       }),
