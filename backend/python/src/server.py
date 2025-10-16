@@ -101,6 +101,13 @@ def _output_path(job_id: str, filename: str) -> Path:
     return directory / filename
 
 
+def _safe_getsize(path: str) -> Optional[int]:
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return None
+
+
 def _persist_job(job_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
     with _jobs_lock:
         meta_path = _job_meta_path(job_id)
@@ -334,27 +341,63 @@ def convert_archicad_to_ifc():
     Accepts multipart/form-data with:
     - file: .pln file (required)
     - jobId (optional): Job ID for progress tracking
+    - filePath (optional): Path to a staged .pln file accessible to the plugin
 
     Returns a JSON payload containing job metadata.
     """
     try:
         _ensure_background_services()
 
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file provided'}), 400
+        incoming_file = request.files.get('file')
+        if incoming_file and incoming_file.filename == '':
+            incoming_file = None
 
-        file = request.files['file']
+        raw_file_path = request.form.get('filePath') or request.form.get('plnPath') or ''
+        file_path_field = raw_file_path.strip() or None
 
-        if file.filename == '':
-            return jsonify({'error': 'Empty filename'}), 400
-
-        if not file.filename.lower().endswith('.pln'):
-            return jsonify({'error': 'Invalid file format. Only .pln files are accepted'}), 400
+        if not incoming_file and not file_path_field:
+            return jsonify({'error': 'No file payload provided. Supply a file or filePath.'}), 400
 
         job_id = request.form.get('jobId') or _generate_job_id('archicad')
-        original_filename = file.filename
-        safe_filename = secure_filename(original_filename) or f"{job_id}.pln"
-        download_name = secure_filename(f"{Path(safe_filename).stem or job_id}.ifc")
+
+        staged_bytes_raw = request.form.get('stagedBytes')
+        staged_bytes: Optional[int] = None
+        if staged_bytes_raw:
+            try:
+                staged_bytes = int(staged_bytes_raw)
+            except (TypeError, ValueError):
+                staged_bytes = None
+
+        staging_hint = (request.form.get('stagingStrategy') or '').strip() or None
+
+        input_path: Optional[str] = None
+        original_filename: str
+        staging_strategy: str
+
+        if file_path_field:
+            expanded = os.path.expandvars(file_path_field)
+            candidate = Path(expanded).expanduser()
+            resolved_candidate = candidate.resolve(strict=False)
+            if not resolved_candidate.exists() or not resolved_candidate.is_file():
+                return jsonify({'error': f"Provided filePath does not exist or is not a file: {resolved_candidate}"}), 400
+            if resolved_candidate.suffix.lower() != '.pln':
+                return jsonify({'error': 'Invalid file format. Only .pln files are accepted'}), 400
+            input_path = str(resolved_candidate)
+            original_filename = request.form.get('originalFilename') or resolved_candidate.name or f"{job_id}.pln"
+            staging_strategy = staging_hint or 'external-path'
+        else:
+            if not incoming_file or not incoming_file.filename:
+                return jsonify({'error': 'No file provided'}), 400
+            original_filename = incoming_file.filename
+            if not original_filename.lower().endswith('.pln'):
+                return jsonify({'error': 'Invalid file format. Only .pln files are accepted'}), 400
+            safe_filename = secure_filename(original_filename) or f"{job_id}.pln"
+            input_path = str(_input_path(job_id, safe_filename))
+            staging_strategy = staging_hint or 'direct-upload'
+
+        download_name = secure_filename(f"{Path(original_filename).stem or job_id}.ifc")
+        output_path = str(_output_path(job_id, download_name))
+        storage_root = str(_job_directory(job_id))
 
         if not plugin_ws_server.is_plugin_connected(PluginType.ARCHICAD):
             error_msg = 'Archicad plugin is not connected to Python bridge'
@@ -365,38 +408,74 @@ def convert_archicad_to_ifc():
                 'progress': 0,
                 'message': error_msg,
                 'originalFilename': original_filename,
+                'inputPath': input_path,
+                'stagingStrategy': staging_strategy,
             })
             ws_client.send_error(job_id, error_msg)
             return jsonify({'error': error_msg, 'jobId': job_id}), 503
 
         logger.info(f"Dispatching Archicad→IFC conversion for job {job_id}")
 
+        initial_message = 'Awaiting upload' if staging_strategy == 'direct-upload' else 'Using staged PLN path from Node backend'
+
         _persist_job(job_id, {
             'plugin': PluginType.ARCHICAD.value,
             'status': 'queued',
             'progress': 0,
-            'message': 'Awaiting upload',
+            'message': initial_message,
             'originalFilename': original_filename,
             'downloadName': download_name,
-            'storagePath': str(_job_directory(job_id)),
+            'storagePath': storage_root,
+            'inputPath': input_path,
+            'stagingStrategy': staging_strategy,
+            'stagedBytes': staged_bytes,
         })
 
-        input_path = _input_path(job_id, safe_filename)
-        file.save(input_path)
+        observed_size: Optional[int] = staged_bytes
 
-        ws_client.send_progress(job_id, 10, 'uploading', 'File uploaded to Python server')
+        if staging_strategy == 'direct-upload' and incoming_file:
+            incoming_file.save(input_path)
+            observed_size = _safe_getsize(input_path)
+            ws_client.send_progress(
+                job_id,
+                10,
+                'uploading',
+                'File uploaded to Python server',
+                details={
+                    'inputPath': input_path,
+                    'stagingStrategy': staging_strategy,
+                    'stagedBytes': observed_size,
+                },
+            )
+            upload_message = 'File uploaded to Python server'
+        else:
+            if observed_size is None:
+                observed_size = _safe_getsize(input_path)
+            ws_client.send_progress(
+                job_id,
+                10,
+                'uploading',
+                'File path registered on Python bridge',
+                details={
+                    'inputPath': input_path,
+                    'stagingStrategy': staging_strategy,
+                    'stagedBytes': observed_size,
+                },
+            )
+            upload_message = 'File path registered on Python bridge'
+
         _persist_job(job_id, {
             'status': 'uploading',
             'progress': 10,
-            'message': 'File uploaded to Python server',
-            'inputPath': str(input_path),
+            'message': upload_message,
+            'inputPath': input_path,
+            'stagingStrategy': staging_strategy,
+            'stagedBytes': observed_size,
         })
-
-        output_path = str(_output_path(job_id, download_name))
 
         dispatched = plugin_ws_server.start_archicad_conversion(
             job_id=job_id,
-            pln_path=str(input_path),
+            pln_path=input_path,
             output_path=output_path,
         )
 
@@ -411,16 +490,30 @@ def convert_archicad_to_ifc():
             ws_client.send_error(job_id, error_msg)
             return jsonify({'error': error_msg, 'jobId': job_id}), 500
 
-        ws_client.send_progress(job_id, 20, 'queued', 'Conversion request accepted by Python bridge')
+        ws_client.send_progress(
+            job_id,
+            20,
+            'queued',
+            'Conversion request accepted by Python bridge',
+            details={
+                'inputPath': input_path,
+                'outputPath': output_path,
+                'stagingStrategy': staging_strategy,
+                'stagedBytes': observed_size,
+            },
+        )
+
         _persist_job(job_id, {
             'status': 'processing',
             'progress': 20,
             'message': 'Awaiting conversion on Archicad plugin',
-            'inputPath': str(input_path),
+            'inputPath': input_path,
             'outputPath': output_path,
             'downloadPath': output_path,
             'downloadName': download_name,
-            'storagePath': str(_job_directory(job_id)),
+            'storagePath': storage_root,
+            'stagingStrategy': staging_strategy,
+            'stagedBytes': observed_size,
         })
 
         return jsonify({

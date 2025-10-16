@@ -15,6 +15,9 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { promises as fs } from 'node:fs';
+import { basename, extname, join, resolve as resolvePath } from 'node:path';
+import { tmpdir } from 'node:os';
 import axios from 'axios';
 import FormData from 'form-data';
 import { ConversionStatus, wsManager } from '../ws/websocket';
@@ -34,6 +37,37 @@ if (process.env.APP_ENV === 'production') {
   PYTHON_API_CONNECTION_URL = `http://${host}:${port}`;
 }
 
+const ARCHICAD_STAGING_ROOT =
+  process.env.ARCHICAD_STAGING_DIR ||
+  join(tmpdir(), 'ts-ifc-api', 'archicad-staging');
+
+function sanitizeComponent(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+async function stagePlnFile(
+  jobId: string,
+  originalName: string,
+  buffer: Buffer,
+): Promise<{ stagedPath: string; size: number }> {
+  const extension = extname(originalName) || '.pln';
+  const baseName = basename(originalName, extension) || 'model';
+  const safeBase = sanitizeComponent(baseName) || 'model';
+  const safeJobSegment = sanitizeComponent(jobId) || 'job';
+  const safeFilename = `${safeBase}${extension.toLowerCase()}`;
+  const jobDir = join(ARCHICAD_STAGING_ROOT, safeJobSegment);
+
+  await fs.mkdir(jobDir, { recursive: true });
+
+  const stagedPath = join(jobDir, safeFilename);
+  await fs.writeFile(stagedPath, buffer);
+
+  return {
+    stagedPath: resolvePath(stagedPath),
+    size: buffer.byteLength,
+  };
+}
+
 /**
  * Checks the connection to the Archicad Python service.
  * @returns A promise that resolves with a boolean indicating the connection status.
@@ -46,7 +80,7 @@ export async function checkArchicadPythonServiceConnection(
       jobId,
       20,
       ConversionStatus.UPLOADING,
-      'Sending file to Archicad service',
+      'Checking Archicad bridge health',
     );
 
     const { data, status } = await axios.get(
@@ -98,12 +132,28 @@ export async function sendFileToArchicadPythonServiceWS(
   filename: string,
   jobId: string,
 ): Promise<void> {
+  let stagedFile: { stagedPath: string; size: number } | null = null;
+
   try {
     wsManager.updateProgress(
       jobId,
       10,
       ConversionStatus.UPLOADING,
-      'Sending file to Archicad service',
+      'Preparing file for Archicad service',
+    );
+
+    stagedFile = await stagePlnFile(jobId, filename, file);
+
+    wsManager.updateProgress(
+      jobId,
+      15,
+      ConversionStatus.UPLOADING,
+      'File staged for Archicad conversion',
+      {
+        stagingStrategy: 'node-temp',
+        stagedPath: stagedFile.stagedPath,
+        stagedBytes: stagedFile.size,
+      },
     );
 
     // Check if API is healthy
@@ -115,14 +165,25 @@ export async function sendFileToArchicadPythonServiceWS(
 
     // Send file with job ID for tracking
     const formData = new FormData();
-    formData.append('file', new Blob([file]), filename);
     formData.append('jobId', jobId);
+    if (stagedFile) {
+      formData.append('filePath', stagedFile.stagedPath);
+      formData.append('stagedBytes', String(stagedFile.size));
+    }
+    formData.append('originalFilename', filename);
+    formData.append('stagingStrategy', 'node-temp');
 
     wsManager.updateProgress(
       jobId,
       40,
       ConversionStatus.PROCESSING,
-      'File sent to Archicad bridge, awaiting plugin confirmation',
+      'File path submitted to Archicad bridge',
+      stagedFile
+        ? {
+            stagingStrategy: 'node-temp',
+            stagedPath: stagedFile.stagedPath,
+          }
+        : undefined,
     );
 
     const response = await axios.post(
@@ -150,11 +211,23 @@ export async function sendFileToArchicadPythonServiceWS(
     wsManager.updateProgress(jobId, 50, ConversionStatus.PROCESSING, message, {
       pythonJobId: response.data?.jobId,
       downloadUrl: response.data?.downloadUrl,
+      stagingStrategy: 'node-temp',
+      stagedPath: stagedFile?.stagedPath,
     });
   } catch (error) {
     wsManager.handleJobError(
       jobId,
       `Conversion failed during upload: ${error.message}`,
     );
+
+    if (stagedFile) {
+      try {
+        await fs.unlink(stagedFile.stagedPath);
+      } catch (cleanupError) {
+        console.warn(
+          `Failed to remove staged file ${stagedFile.stagedPath}: ${cleanupError instanceof Error ? cleanupError.message : cleanupError}`,
+        );
+      }
+    }
   }
 }
