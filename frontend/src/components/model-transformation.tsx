@@ -15,11 +15,12 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Upload, FileText, AlertCircle, ArrowRight, CheckSquare } from 'lucide-react';
 import { useWebSocketContext } from '../lib/websocket-context';
 import { ConversionProgress } from './conversion-progress';
 import { PluginStatusBar } from './plugin-status-indicator';
+import { JobStatus } from '../lib/websocket-types';
 
 const ALLOWED_EXTENSIONS = ['.rvt', '.pln', '.ifc'];
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
@@ -32,9 +33,10 @@ export function ModelTransformation() {
   const [currentJobIds, setCurrentJobIds] = useState<string[]>([]);
   const [conversionTargets, setConversionTargets] = useState<ConversionTarget[]>([]);
   const [ifcPath, setIfcPath] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { sendMessage, isConnected } = useWebSocketContext();
+  const { jobs } = useWebSocketContext();
 
   const getFileExtension = (fileName: string): string => {
     return fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
@@ -106,27 +108,64 @@ export function ModelTransformation() {
     });
   };
 
-  const convertFileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        const base64 = result.split(',')[1];
-        resolve(base64);
-      };
-      reader.onerror = () => reject(new Error('Falha ao ler arquivo'));
-      reader.readAsDataURL(file);
-    });
+  // Monitorar o primeiro job (geração de IFC) para iniciar a segunda conversão
+  useEffect(() => {
+    if (currentJobIds.length === 0 || !ifcPath) return;
+
+    const firstJobId = currentJobIds[0];
+    const firstJob = jobs.get(firstJobId);
+
+    if (!firstJob) return;
+
+    // Se o primeiro job completou e temos um IFC path, iniciar a segunda conversão
+    if (firstJob.status === JobStatus.COMPLETED && firstJob.result?.downloadUrl) {
+      // Extrair o caminho do arquivo IFC do resultado
+      const ifcFilePath = firstJob.result.downloadUrl;
+
+      // Iniciar a segunda conversão para cada target
+      conversionTargets.forEach(async (target) => {
+        if (target) {
+          await startSecondConversion(ifcFilePath, target);
+        }
+      });
+
+      // Limpar ifcPath para não iniciar múltiplas vezes
+      setIfcPath(null);
+    }
+  }, [jobs, currentJobIds, ifcPath, conversionTargets]);
+
+  const startSecondConversion = async (ifcFilePath: string, target: ConversionTarget) => {
+    try {
+      const resultType = target === 'revit' ? 'rvt' : 'pln';
+
+      const response = await fetch('http://localhost:3000/models/convert-from-ifc', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          filePath: ifcFilePath,
+          resultType,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao iniciar segunda conversão');
+      }
+
+      const result = await response.json();
+
+      // Adicionar o novo jobId à lista
+      setCurrentJobIds((prev) => [...prev, result.jobId]);
+    } catch (err) {
+      setError(`Erro na segunda conversão: ${err instanceof Error ? err.message : String(err)}`);
+    }
   };
 
   const handleSubmit = async () => {
     if (!selectedFile) {
       setError('Selecione um arquivo para converter.');
-      return;
-    }
-
-    if (!isConnected) {
-      setError('WebSocket não está conectado. Aguarde a conexão.');
       return;
     }
 
@@ -137,67 +176,52 @@ export function ModelTransformation() {
       return;
     }
 
+    setIsUploading(true);
+    setError(null);
+
     try {
       const jobIds: string[] = [];
 
-      if (extension === '.rvt') {
-        // RVT -> IFC -> PLN
-        const ifcJobId = `job-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      if (extension === '.rvt' || extension === '.pln') {
+        // Passo 1: Converter para IFC via HTTP
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('type', 'ifc');
 
-        setError('Conversão de Revit para IFC e Archicad ainda não implementada via WebSocket.');
-        return;
-
-      } else if (extension === '.pln') {
-        // PLN -> IFC
-        const ifcJobId = `job-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-        const base64Data = await convertFileToBase64(selectedFile);
-
-        sendMessage({
-          type: 'convert_archicad_to_ifc',
-          file: base64Data,
-          fileName: selectedFile.name,
-          jobId: ifcJobId,
+        const response = await fetch('http://localhost:3000/models/generate-ifc', {
+          method: 'POST',
+          body: formData,
         });
 
-        jobIds.push(ifcJobId);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Erro ao iniciar conversão para IFC');
+        }
 
-        // Se o usuário quer converter para Revit, aguardaremos o IFC ser gerado
-        if (conversionTargets.includes('revit')) {
-          // TODO: Implementar conversão IFC -> RVT após primeira conversão completar
-          setError('Conversão para Revit será implementada quando o IFC estiver pronto.');
+        const result = await response.json();
+        jobIds.push(result.jobId);
+
+        // Se tiver targets de conversão, marcar que vamos aguardar o IFC
+        if (conversionTargets.length > 0) {
+          setIfcPath('pending'); // Marca que vamos aguardar o IFC
         }
 
       } else if (extension === '.ifc') {
-        // IFC -> RVT e/ou PLN
-        // Para arquivos IFC, precisamos do caminho no servidor
-        // Por enquanto, vamos assumir que o arquivo já foi enviado
-        const serverIfcPath = `/uploads/${selectedFile.name}`;
+        // Para arquivos IFC, fazer upload primeiro
+        const formData = new FormData();
+        formData.append('file', selectedFile);
 
-        for (const target of conversionTargets) {
-          const jobId = `job-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-
-          if (target === 'revit') {
-            sendMessage({
-              type: 'convert_ifc_to_revit',
-              ifcPath: serverIfcPath,
-              jobId,
-            });
-            jobIds.push(jobId);
-          } else if (target === 'archicad') {
-            sendMessage({
-              type: 'convert_ifc_to_archicad',
-              ifcPath: serverIfcPath,
-              jobId,
-            });
-            jobIds.push(jobId);
-          }
-        }
+        // TODO: Implementar endpoint de upload de IFC
+        // Por enquanto, mostrar erro
+        throw new Error('Upload direto de IFC ainda não implementado. Primeiro converta de RVT/PLN para IFC.');
       }
 
       setCurrentJobIds(jobIds);
       setError(null);
     } catch (err) {
-      setError(`Erro ao processar arquivo: ${err}`);
+      setError(`Erro ao processar arquivo: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -355,13 +379,13 @@ export function ModelTransformation() {
               onClick={handleSubmit}
               disabled={
                 !selectedFile ||
-                !isConnected ||
+                isUploading ||
                 (getFileExtension(selectedFile?.name || '') === '.ifc' &&
                   conversionTargets.length === 0)
               }
               className="flex-1 rounded-md bg-blue-600 px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
             >
-              {isConnected ? 'Converter Modelo' : 'Aguardando conexão...'}
+              {isUploading ? 'Enviando...' : 'Converter Modelo'}
             </button>
             <button
               type="button"

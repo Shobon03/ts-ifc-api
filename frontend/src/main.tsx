@@ -21,9 +21,9 @@ import './assets/css/index.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
-import { WebSocketProvider } from './lib/websocket-context';
 
 import { routeTree } from './routeTree.gen';
+import { WebSocketProvider } from './lib/websocket-context';
 
 const router = createRouter({
   routeTree,
@@ -40,10 +40,10 @@ const queryClient = new QueryClient();
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <WebSocketProvider>
-        <ReactQueryDevtools initialIsOpen={false} />
-        <RouterProvider router={router} />
-      </WebSocketProvider>
+    <WebSocketProvider wsUrl="ws://localhost:3000/models/ws/conversion">
+      <ReactQueryDevtools initialIsOpen={false} />
+      <RouterProvider router={router} />
+    </WebSocketProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

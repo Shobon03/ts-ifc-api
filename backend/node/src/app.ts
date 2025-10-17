@@ -18,6 +18,7 @@
 import fastifyCors from '@fastify/cors';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyRateLimit from '@fastify/rate-limit';
+import fastifyStatic from '@fastify/static';
 import fastifySwagger from '@fastify/swagger';
 import fastifyWebsocket from '@fastify/websocket';
 import scalarFastifyApiReference from '@scalar/fastify-api-reference';
@@ -27,6 +28,7 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from 'fastify-type-provider-zod';
+import { join } from 'path';
 import { healthRoute } from './routes/health.route';
 import { modelRoutes } from './routes/model.route';
 import { MAX_FILE_SIZE } from './utils/max-filesize';
@@ -55,10 +57,16 @@ export async function initApp(): Promise<FastifyInstance> {
     timeWindow: '1 minute',
   });
 
+  // Allow all origins during local development to avoid CORS-related issues
+  // NOTE: This should be restricted in production environments
   await app.register(fastifyCors, {
-    origin: 'http://localhost:3000',
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], // Allowed HTTP methods
+    origin: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    credentials: true,
   });
+
+  // Register WebSocket support before other plugins
+  await app.register(fastifyWebsocket);
 
   // Multipart files, will upload .rvt or .arc files, so it needs to be able to handle large files
   // Max file size is set to 100 MB
@@ -67,6 +75,13 @@ export async function initApp(): Promise<FastifyInstance> {
       fileSize: MAX_FILE_SIZE, // 100 MB
     },
     attachFieldsToBody: true, // Attach file fields to the request body
+  });
+
+  // Serve static files from public/conversion directory
+  await app.register(fastifyStatic, {
+    root: join(__dirname, '..', 'public', 'conversion'),
+    prefix: '/download/conversion/',
+    decorateReply: false,
   });
 
   await app.register(fastifySwagger, {
@@ -101,8 +116,6 @@ export async function initApp(): Promise<FastifyInstance> {
       message: 'An unexpected error occurred. Please try again later.',
     });
   });
-
-  await app.register(fastifyWebsocket);
 
   // Register WebSocket endpoints
   app.register(async (app) => {

@@ -66,7 +66,7 @@ CORS(app, origins=os.getenv('CORS_ORIGINS', '*').split(','))
 
 # Initialize services
 ws_client = NodeJSWebSocketClient(
-    url=os.getenv('NODE_WS_URL', 'ws://localhost:3001/ws/python-bridge')
+    url=os.getenv('NODE_WS_URL', 'ws://localhost:3000/ws/python-bridge')
 )
 
 # Synchronisation primitives

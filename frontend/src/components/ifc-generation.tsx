@@ -17,7 +17,6 @@
 
 import { useState, useRef } from 'react';
 import { Upload, FileText, AlertCircle } from 'lucide-react';
-import { useWebSocketContext } from '../lib/websocket-context';
 import { ConversionProgress } from './conversion-progress';
 import { PluginStatusBar } from './plugin-status-indicator';
 
@@ -28,9 +27,8 @@ export function IFCGeneration() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const { sendMessage, isConnected } = useWebSocketContext();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -76,54 +74,43 @@ export function IFCGeneration() {
     event.preventDefault();
   };
 
-  const convertFileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        const base64 = result.split(',')[1];
-        resolve(base64);
-      };
-      reader.onerror = () => reject(new Error('Falha ao ler arquivo'));
-      reader.readAsDataURL(file);
-    });
-  };
-
   const handleSubmit = async () => {
     if (!selectedFile) {
       setError('Selecione um arquivo para converter.');
       return;
     }
 
-    if (!isConnected) {
-      setError('WebSocket não está conectado. Aguarde a conexão.');
-      return;
-    }
+    setIsUploading(true);
+    setError(null);
 
     try {
-      const fileExtension = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
-      const jobId = `job-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      // Criar FormData para upload via HTTP
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('type', 'ifc');
 
-      if (fileExtension === '.pln') {
-        const base64Data = await convertFileToBase64(selectedFile);
+      // Fazer upload via HTTP POST
+      const response = await fetch('http://localhost:3000/models/generate-ifc', {
+        method: 'POST',
+        body: formData,
+      });
 
-        sendMessage({
-          type: 'convert_archicad_to_ifc',
-          file: base64Data,
-          fileName: selectedFile.name,
-          jobId,
-        });
-      } else if (fileExtension === '.rvt') {
-        // Para Revit, primeiro fazemos upload via HTTP e depois enviamos mensagem WebSocket
-        // Por enquanto, vamos apenas criar o job
-        setError('Conversão de Revit para IFC ainda não implementada via WebSocket.');
-        return;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao iniciar conversão');
       }
 
-      setCurrentJobId(jobId);
-      setError(null);
+      const result = await response.json();
+
+      // O backend retorna: { jobId, message, websocketUrl }
+      setCurrentJobId(result.jobId);
+
+      // O WebSocket já está conectado e vai receber as atualizações automaticamente
+      // através do pythonBridge que registramos na conexão
     } catch (err) {
-      setError(`Erro ao processar arquivo: ${err}`);
+      setError(`Erro ao processar arquivo: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -209,10 +196,10 @@ export function IFCGeneration() {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={!selectedFile || !isConnected}
+              disabled={!selectedFile || isUploading}
               className="flex-1 rounded-md bg-blue-600 px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
             >
-              {isConnected ? 'Converter para IFC' : 'Aguardando conexão...'}
+              {isUploading ? 'Enviando...' : 'Converter para IFC'}
             </button>
             <button
               type="button"

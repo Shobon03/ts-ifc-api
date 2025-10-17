@@ -54,6 +54,9 @@ export interface WebSocketState {
   reconnectCount: number;
 }
 
+// Shared WebSocket instance across hook mounts (keeps connection during remounts/HMR)
+let sharedSocket: WebSocket | null = null;
+
 export function useWebSocket({
   url,
   onMessage,
@@ -63,6 +66,7 @@ export function useWebSocket({
   reconnectAttempts = 5,
   reconnectInterval = 3000,
 }: UseWebSocketOptions) {
+  console.log('[useWebSocket] hook instantiated');
   const [state, setState] = useState<WebSocketState>({
     socket: null,
     isConnected: false,
@@ -71,28 +75,89 @@ export function useWebSocket({
     reconnectCount: 0,
   });
 
+  // Shared socket across hook instances - keeps connection alive across remounts/HMR
+  // Note: module-level sharedSocket is defined below
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>(null);
   const reconnectCountRef = useRef(0);
   const urlRef = useRef(url);
   const messageHandlersRef = useRef<
     Map<string, (message: ServerMessage) => void>
   >(new Map());
+  // Keep a per-hook ref that mirrors the shared socket
+  const socketRef = useRef<WebSocket | null>(sharedSocket);
+  const isMountedRef = useRef(true);
+  const isConnectingRef = useRef(false);
+
+  // Store handlers in refs to avoid recreating connect function
+  const onMessageRef = useRef(onMessage);
+  const onOpenRef = useRef(onOpen);
+  const onCloseRef = useRef(onClose);
+  const onErrorRef = useRef(onError);
+  const reconnectAttemptsRef = useRef(reconnectAttempts);
+  const reconnectIntervalRef = useRef(reconnectInterval);
 
   useEffect(() => {
     urlRef.current = url;
   }, [url]);
 
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+    onOpenRef.current = onOpen;
+    onCloseRef.current = onClose;
+    onErrorRef.current = onError;
+    reconnectAttemptsRef.current = reconnectAttempts;
+    reconnectIntervalRef.current = reconnectInterval;
+  }, [onMessage, onOpen, onClose, onError, reconnectAttempts, reconnectInterval]);
+
   const connect = useCallback(() => {
+    // Don't connect if component is unmounted, already connecting, or socket already open
+    if (!isMountedRef.current || isConnectingRef.current) {
+      console.log('[WebSocket] Skipping connect - already connecting or unmounted');
+      return;
+    }
+
+    // if there's a shared socket, use it
+    if (!socketRef.current && sharedSocket) {
+      socketRef.current = sharedSocket;
+    }
+
+    if (socketRef.current?.readyState === WebSocket.OPEN ||
+        socketRef.current?.readyState === WebSocket.CONNECTING) {
+      console.log('[WebSocket] Skipping connect - socket already open/connecting');
+      return;
+    }
+
+    isConnectingRef.current = true;
+
     try {
+      // Clear any existing reconnect timeout
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+
+      // Close existing socket if any
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
+      }
+
       setState((prev) => ({
         ...prev,
-        isReconnecting: prev.reconnectCount > 0,
+        isReconnecting: reconnectCountRef.current > 0,
         error: null,
       }));
 
-      const socket = new WebSocket(urlRef.current);
+      console.log(`[WebSocket] Connecting to ${urlRef.current}...`);
+  const socket = new WebSocket(urlRef.current);
+  socketRef.current = socket;
+  // store globally so other mounts reuse the same socket
+  sharedSocket = socket;
 
       socket.onopen = (event) => {
+        isConnectingRef.current = false;
+        if (!isMountedRef.current) return;
+
         console.log('[WebSocket] Connected to server');
         setState((prev) => ({
           ...prev,
@@ -100,17 +165,20 @@ export function useWebSocket({
           isConnected: true,
           isReconnecting: false,
           error: null,
+          reconnectCount: 0,
         }));
         reconnectCountRef.current = 0;
-        onOpen?.(event);
+        onOpenRef.current?.(event);
       };
 
       socket.onmessage = (event) => {
+        if (!isMountedRef.current) return;
+
         try {
           const message: ServerMessage = JSON.parse(event.data);
           console.log('[WebSocket] Message received:', message.type, message);
 
-          onMessage?.(message);
+          onMessageRef.current?.(message);
 
           const handler = messageHandlersRef.current.get(message.type);
           if (handler) {
@@ -131,16 +199,31 @@ export function useWebSocket({
       };
 
       socket.onclose = (event) => {
+        isConnectingRef.current = false;
+        // mirror to shared socket
+        if (sharedSocket === socketRef.current) {
+          sharedSocket = null;
+        }
+        if (!isMountedRef.current) return;
+
         console.log('[WebSocket] Connection closed:', event.code, event.reason);
+        socketRef.current = null;
+
         setState((prev) => ({
           ...prev,
           socket: null,
           isConnected: false,
         }));
 
-        onClose?.(event);
+        onCloseRef.current?.(event);
 
-        if (!event.wasClean && reconnectCountRef.current < reconnectAttempts) {
+        // Don't reconnect if it was a clean close or component unmounted
+        if (event.code === 1000 || !isMountedRef.current) {
+          return;
+        }
+
+        // Always try to reconnect if we haven't exceeded max attempts
+        if (reconnectCountRef.current < reconnectAttemptsRef.current) {
           reconnectCountRef.current++;
           setState((prev) => ({
             ...prev,
@@ -149,52 +232,82 @@ export function useWebSocket({
           }));
 
           console.log(
-            `[WebSocket] Reconnecting... Attempt ${reconnectCountRef.current}/${reconnectAttempts}`,
+            `[WebSocket] Reconnecting... Attempt ${reconnectCountRef.current}/${reconnectAttemptsRef.current}`,
           );
 
           reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
-          }, reconnectInterval);
-        } else if (reconnectCountRef.current >= reconnectAttempts) {
+            if (isMountedRef.current) {
+              connect();
+            }
+          }, reconnectIntervalRef.current);
+        } else {
+          console.error('[WebSocket] Maximum reconnection attempts reached');
           setState((prev) => ({
             ...prev,
             error: 'Maximum reconnection attempts reached',
+            isReconnecting: false,
           }));
         }
       };
 
       socket.onerror = (event) => {
+        isConnectingRef.current = false;
+        if (!isMountedRef.current) return;
+
         console.error('[WebSocket] Connection error:', event);
         setState((prev) => ({
           ...prev,
           error: 'WebSocket connection error',
         }));
-        onError?.(event);
+        onErrorRef.current?.(event);
       };
 
       setState((prev) => ({ ...prev, socket }));
     } catch (error) {
+      isConnectingRef.current = false;
+      if (!isMountedRef.current) return;
+
       console.error('[WebSocket] Failed to create connection:', error);
       setState((prev) => ({
         ...prev,
         error: `Failed to create WebSocket connection: ${error}`,
       }));
+
+      // Try to reconnect if we haven't exceeded max attempts
+      if (reconnectCountRef.current < reconnectAttemptsRef.current) {
+        reconnectCountRef.current++;
+        setState((prev) => ({
+          ...prev,
+          isReconnecting: true,
+          reconnectCount: reconnectCountRef.current,
+        }));
+
+        console.log(
+          `[WebSocket] Reconnecting after error... Attempt ${reconnectCountRef.current}/${reconnectAttemptsRef.current}`,
+        );
+
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (isMountedRef.current) {
+            connect();
+          }
+        }, reconnectIntervalRef.current);
+      }
     }
-  }, [
-    onMessage,
-    onOpen,
-    onClose,
-    onError,
-    reconnectAttempts,
-    reconnectInterval,
-  ]);
+  }, []); // No dependencies - uses refs only
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
     }
     reconnectCountRef.current = reconnectAttempts;
-    state.socket?.close();
+    // close the shared socket only if this hook owns it
+    if (state.socket) {
+      try {
+        state.socket.close();
+      } finally {
+        if (sharedSocket === state.socket) sharedSocket = null;
+      }
+    }
   }, [state.socket, reconnectAttempts]);
 
   const sendMessage = useCallback(
@@ -232,22 +345,29 @@ export function useWebSocket({
     messageHandlersRef.current.delete(`job:${jobId}`);
   }, []);
 
+  // Initialize connection once on mount
   useEffect(() => {
+    isMountedRef.current = true;
     connect();
 
     return () => {
+      isMountedRef.current = false;
+
+      // Clear reconnect timeout
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
-      state.socket?.close();
-    };
-  }, []);
 
-  useEffect(() => {
-    return () => {
-      disconnect();
+      // Prevent further reconnection attempts on this hook instance when it unmounts
+      reconnectCountRef.current = reconnectAttempts;
+
+      // Do not close the socket here. Leave it alive so that other
+      // instances of the hook or StrictMode remounts can reuse it.
+      // The connection will be closed explicitly via disconnect() or when leaving the page.
     };
-  }, [disconnect]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only run once on mount
 
   return {
     ...state,

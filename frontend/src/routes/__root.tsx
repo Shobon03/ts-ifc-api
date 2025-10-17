@@ -27,7 +27,7 @@ import { Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink } from '@/components/ui/nav-link';
 import { SquareButton, SquareLinkButton } from '@/components/ui/square-button';
-import { WebSocketProvider } from '@/lib/websocket-context';
+import { WebSocketStatus } from '@/components/websocket-status';
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -55,12 +55,12 @@ function RootComponent() {
     }
   }, [darkMode]);
 
-  useEffect(() => {
-    console.log(location);
-  }, [location]);
+  // Track location changes if needed for debugging
+  // useEffect(() => {
+  //   console.log(location);
+  // }, [location]);
 
   return (
-    <WebSocketProvider wsUrl="ws://localhost:3000/models/ws/conversion">
       <div
         className={`min-h-screen transition-colors duration-300 ${darkMode ? 'dark' : ''}`}
       >
@@ -84,6 +84,7 @@ function RootComponent() {
               </div>
             </div>
             <div className='flex items-center space-x-4'>
+              <WebSocketStatus showDetails={false} />
               <SquareLinkButton
                 href='https://github.com/Shobon03/ts-ifc-api'
                 title='Repositório do GitHub'
@@ -104,6 +105,6 @@ function RootComponent() {
         </main>
         <TanStackRouterDevtools initialIsOpen={false} />
       </div>
-    </WebSocketProvider>
+    
   );
 }

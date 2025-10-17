@@ -31,6 +31,7 @@ import { IfcValidator } from '../services/ifc.service';
 import { BIMFileExportType } from '../types/formats';
 import { MAX_FILE_SIZE } from '../utils/max-filesize';
 import { wsManager } from '../ws/websocket';
+import { pythonBridge } from '../ws/python-bridge';
 
 const BASE_URL = '/models';
 const TAGS = ['Models'];
@@ -78,11 +79,46 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
   const app = instance.withTypeProvider<ZodTypeProvider>();
 
   app.register(async (app) => {
-    app.get(`${BASE_URL}/ws/conversion`, { websocket: true }, (socket, req) => {
+  app.get(`${BASE_URL}/ws/conversion`, { websocket: true }, (socket, req) => {
+      // Log incoming websocket upgrade headers to help debugging browser handshake issues
+      try {
+        const origin = (req.headers && (req.headers as any).origin) || 'no-origin';
+        const host = req.headers?.host || 'no-host';
+        const remote = (req.raw && req.raw.socket && (req.raw.socket as any).remoteAddress) || 'unknown-remote';
+        console.log(`WebSocket upgrade request for /models/ws/conversion - origin=${origin} host=${host} remote=${remote} url=${req.url}`);
+        console.log('WebSocket upgrade headers:', req.headers);
+      } catch (err) {
+        console.error('Failed to log websocket upgrade headers:', err);
+      }
+
       // Extract jobId from query string
       const url = new URL(req.url, `http://${req.headers.host}`);
       const jobId = url.searchParams.get('jobId');
 
+      // small helper to send safely and log failures without throwing
+      const safeSend = (payload: any) => {
+        const msg = typeof payload === 'string' ? payload : JSON.stringify(payload);
+        try {
+          if (socket && (socket as any).readyState === (socket as any).OPEN) {
+            console.log(`[WebSocket SEND] ${new Date().toISOString()} -> ${msg.substring(0, 200)}`);
+            socket.send(msg);
+            return true;
+          }
+          console.warn('[WebSocket SEND] socket not open, readyState=', (socket as any).readyState);
+          return false;
+        } catch (err) {
+          console.error('[WebSocket SEND] failed to send message', err, 'payload=', msg);
+          try {
+            // attempt graceful close if send fails
+            socket.close(1011, 'Internal send error');
+          } catch (_e) {
+            // ignore
+          }
+          return false;
+        }
+      };
+
+      // Setup message handler
       socket.on('message', async (message) => {
         try {
           const data = JSON.parse(message.toString());
@@ -93,52 +129,57 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
             const subscribeJobId = data.jobId || jobId;
 
             if (!subscribeJobId) {
-              socket.send(
-                JSON.stringify({
-                  type: 'error',
-                  message: 'Job ID is required for subscription',
-                }),
-              );
+              safeSend({ type: 'error', message: 'Job ID is required for subscription' });
               return;
             }
 
             wsManager.subscribeToJob(subscribeJobId, socket);
 
-            socket.send(
-              JSON.stringify({
-                type: 'subscribed',
-                jobId: subscribeJobId,
-                message: 'Successfully subscribed to job updates',
-              }),
-            );
+            safeSend({ type: 'subscribed', jobId: subscribeJobId, message: 'Successfully subscribed to job updates' });
           }
         } catch (error) {
-          socket.send(
-            JSON.stringify({
-              type: 'error',
-              message: 'Invalid message format',
-            }),
-          );
+          safeSend({ type: 'error', message: 'Invalid message format' });
         }
       });
 
-      if (jobId) {
-        wsManager.subscribeToJob(jobId, socket);
-        socket.send(
-          JSON.stringify({
-            type: 'auto-subscribed',
-            jobId,
-            message: 'Automatically subscribed to job updates',
-          }),
-        );
+      // Log socket lifecycle events to debug browser disconnects
+      socket.on('close', (code: number, reason: Buffer) => {
+        try {
+          const reasonStr = reason ? reason.toString() : '<no-reason>';
+          console.log(`WebSocket /models/ws/conversion closed - code=${code} reason=${reasonStr}`);
+        } catch (err) {
+          console.log('WebSocket closed - unable to stringify reason', err);
+        }
+      });
+
+      socket.on('error', (err: Error) => {
+        console.error('WebSocket /models/ws/conversion error:', err);
+      });
+
+      // Send connection acknowledgment
+      try {
+        const ack = JSON.stringify({
+          type: 'connection_ack',
+          message: 'WebSocket connection established',
+          timestamp: new Date().toISOString(),
+        });
+        console.log('Sending connection_ack to websocket client');
+        safeSend(ack);
+        console.log('connection_ack send attempted');
+      } catch (err) {
+        console.error('Failed to send connection_ack to websocket client:', err);
       }
 
-      socket.send(
-        JSON.stringify({
-          type: 'connected',
-          message: 'WebSocket connection established',
-        }),
-      );
+      // Auto-subscribe to job if jobId provided
+      if (jobId) {
+        wsManager.subscribeToJob(jobId, socket);
+        safeSend({ type: 'auto-subscribed', jobId, message: 'Automatically subscribed to job updates' });
+      }
+
+      // Register client for plugin status updates (after initial setup)
+      console.log('[WebSocket] registering client for plugin status updates');
+      pythonBridge.registerClientConnection(socket);
+      console.log('[WebSocket] client registered for plugin status updates');
     });
   });
 

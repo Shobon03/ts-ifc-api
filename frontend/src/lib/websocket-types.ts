@@ -89,13 +89,19 @@ export interface ListJobsRequest extends BaseMessage {
   type: 'list_jobs';
 }
 
+export interface SubscribeRequest extends BaseMessage {
+  type: 'subscribe';
+  jobId: string;
+}
+
 export type ClientMessage =
   | ConvertArchicadToIFCRequest
   | ConvertIFCToRevitRequest
   | ConvertIFCToArchicadRequest
   | GetJobStatusRequest
   | CancelJobRequest
-  | ListJobsRequest;
+  | ListJobsRequest
+  | SubscribeRequest;
 
 export interface ConnectionAckMessage extends BaseMessage {
   type: 'connection_ack';

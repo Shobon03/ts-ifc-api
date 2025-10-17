@@ -36,8 +36,7 @@ const modelDerivativeClient = new ModelDerivativeClient();
 const CONVERTED_MODELS_DIR = path.join(
   process.cwd(),
   'public',
-  'models',
-  'converted_models',
+  'conversion',
 );
 
 function toBase64Url(value: string): string {
@@ -54,28 +53,9 @@ function ensureConvertedDirectoryExists(): void {
   }
 }
 
-function buildDownloadUrl(jobId: string): string {
-  const downloadPath = `/public/models/converted_models/${jobId}.ifc`;
-  if (env.PUBLIC_BASE_URL) {
-    return `${env.PUBLIC_BASE_URL.replace(/\/+$/, '')}${downloadPath}`;
-  }
-
-  const fallbackHost = env.HOST ?? 'http://localhost';
-  const base =
-    fallbackHost.startsWith('http://') || fallbackHost.startsWith('https://')
-      ? fallbackHost
-      : `http://${fallbackHost}`;
-
-  try {
-    const url = new URL(base);
-    if (env.PORT) {
-      url.port = env.PORT;
-    }
-    return new URL(downloadPath, url).toString();
-  } catch {
-    const portSegment = env.PORT ? `:${env.PORT}` : '';
-    return `${base.replace(/\/+$/, '')}${portSegment}${downloadPath}`;
-  }
+function buildDownloadUrl(jobId: string, filename: string): string {
+  // Use the fastify-static route prefix with job folder
+  return `/download/conversion/${jobId}/${filename}`;
 }
 
 function isNotFoundError(error: unknown): boolean {
@@ -136,15 +116,18 @@ export async function checkTranslationStatus(
  * saves it to the local filesystem, and returns the file path.
  * @param {string} urn - The URN of the file being converted.
  * @param {string} jobId - The unique identifier of the conversion job.
- * @return {Promise<{ success: boolean, filePath?: string, error?: string }>} Returns an object indicating success, the file path of the saved IFC file, or an error message if the download fails.
+ * @param {string} filename - The original filename to use for the output file.
+ * @return {Promise<{ success: boolean, filePath?: string, filename?: string, error?: string }>} Returns an object indicating success, the file path of the saved IFC file, or an error message if the download fails.
  */
 async function downloadAndSaveIfcFile(
   accessToken: string,
   urn: string,
   jobId: string,
+  filename: string,
 ): Promise<{
   success: boolean;
   filePath?: string;
+  filename?: string;
   error?: string;
 }> {
   try {
@@ -189,10 +172,18 @@ async function downloadAndSaveIfcFile(
       responseType: 'arraybuffer',
     });
 
-    const filePath = path.join(CONVERTED_MODELS_DIR, `${jobId}.ifc`);
+    // Create job-specific directory
+    const jobDir = path.join(CONVERTED_MODELS_DIR, jobId);
+    if (!existsSync(jobDir)) {
+      mkdirSync(jobDir, { recursive: true });
+    }
+
+    // Use original filename with .ifc extension
+    const outputFilename = filename.replace(/\.(rvt|pln)$/i, '.ifc');
+    const filePath = path.join(jobDir, outputFilename);
     writeFileSync(filePath, Buffer.from(response.data));
 
-    return { success: true, filePath };
+    return { success: true, filePath, filename: outputFilename };
   } catch (error) {
     console.error('Error downloading/saving IFC file:', error);
     return { success: false, error: (error as Error).message };
@@ -210,6 +201,7 @@ async function monitorConversionProgress(
   accessToken: string,
   urn: string,
   jobId: string,
+  originalFilename: string,
 ): Promise<void> {
   const POLLING_INTERVAL = 5000;
   const MAX_ATTEMPTS = 60;
@@ -236,11 +228,12 @@ async function monitorConversionProgress(
           accessToken,
           urn,
           jobId,
+          originalFilename,
         );
-        if (downloadResult.success) {
+        if (downloadResult.success && downloadResult.filename) {
           wsManager.completeJob(jobId, {
-            downloadUrl: buildDownloadUrl(jobId),
-            fileName: `${jobId}.ifc`,
+            downloadUrl: buildDownloadUrl(jobId, downloadResult.filename),
+            fileName: downloadResult.filename,
             fileSize:
               downloadResult.filePath && existsSync(downloadResult.filePath)
                 ? statSync(downloadResult.filePath).size
@@ -391,7 +384,7 @@ export async function convertRvtToIfcWS(
       'Conversion job started, monitoring progress...',
     );
 
-    void monitorConversionProgress(accessToken, urn, jobId);
+    void monitorConversionProgress(accessToken, urn, jobId, filename);
 
     return { success: true, urn };
   } catch (error) {

@@ -1,0 +1,10 @@
+packages:
+  - backend/node
+  - frontend
+  - documentation
+
+onlyBuiltDependencies:
+  - '@swc/core'
+  - '@tailwindcss/oxide'
+  - esbuild
+  - sharp

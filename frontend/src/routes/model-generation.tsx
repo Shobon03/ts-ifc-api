@@ -16,12 +16,18 @@
  */
 
 import { createFileRoute } from '@tanstack/react-router';
+
 import { IFCGeneration } from '../components/ifc-generation';
+import { WebSocketProvider } from '../lib/websocket-context';
 
 export const Route = createFileRoute('/model-generation')({
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  return <IFCGeneration />;
+  return (
+    <WebSocketProvider wsUrl="ws://localhost:3000/models/ws/conversion">
+      <IFCGeneration />
+    </WebSocketProvider>
+  );
 }

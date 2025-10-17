@@ -34,11 +34,25 @@ interface PythonMessage {
 }
 
 /**
+ * Plugin status tracking
+ */
+type PluginType = 'revit' | 'archicad';
+type PluginStatus = 'connected' | 'disconnected' | 'error';
+
+interface PluginStatusInfo {
+  status: PluginStatus;
+  version?: string;
+  lastUpdate: Date;
+}
+
+/**
  * Manages WebSocket connection from Python service
  */
 class PythonBridgeManager {
   private pythonSocket: WebSocket | null = null;
   private connected = false;
+  private pluginStatuses: Map<PluginType, PluginStatusInfo> = new Map();
+  private clientSockets: Set<WebSocket> = new Set();
 
   /**
    * Registers a Python service WebSocket connection
@@ -235,10 +249,36 @@ class PythonBridgeManager {
 
     const result = (message as any).result || {};
 
+    // Build Node.js-based download URL that points to the static file server
+    // The Python service stores files in outputPath, which we need to map to our static route
+    const outputPath = result.outputPath || '';
+    let downloadUrl = result.downloadUrl;
+    let fileName = result.fileName;
+    let fileSize = result.fileSize || result.outputSize;
+
+    // If we have an outputPath from Python, construct the download URL for Node's static server
+    if (outputPath) {
+      // Extract the relative path from the outputPath
+      // outputPath format: C:\...\backend\node\public\conversion\job-xxx\file.ifc
+      const pathParts = outputPath.split(/[/\\]/);
+      const conversionIndex = pathParts.findIndex(p => p === 'conversion');
+
+      if (conversionIndex !== -1) {
+        // Build the path from 'conversion' onwards
+        const relativePath = pathParts.slice(conversionIndex + 1).join('/');
+        downloadUrl = `/download/conversion/${relativePath}`;
+
+        // Extract filename if not provided
+        if (!fileName) {
+          fileName = pathParts[pathParts.length - 1];
+        }
+      }
+    }
+
     wsManager.completeJob(message.jobId, {
-      downloadUrl: result.downloadUrl,
-      fileName: result.fileName,
-      fileSize: result.fileSize,
+      downloadUrl,
+      fileName,
+      fileSize,
     });
   }
 
@@ -263,10 +303,105 @@ class PythonBridgeManager {
    * Handles plugin status updates
    */
   private handlePluginStatus(message: PythonMessage): void {
-    const plugin = (message as any).plugin;
-    const status = (message as any).status;
+    const plugin = (message as any).plugin as PluginType;
+    const status = (message as any).status as PluginStatus;
+    const version = (message as any).version;
 
     console.log(`Plugin ${plugin} status: ${status}`);
+
+    // Update internal status tracking
+    this.pluginStatuses.set(plugin, {
+      status,
+      version,
+      lastUpdate: new Date(),
+    });
+
+    // Broadcast to all connected clients
+    this.broadcastPluginStatus(plugin, status, version);
+  }
+
+  /**
+   * Broadcasts plugin status to all connected client sockets
+   */
+  private broadcastPluginStatus(
+    plugin: PluginType,
+    status: PluginStatus,
+    version?: string,
+  ): void {
+    const message = {
+      type: 'plugin_status',
+      plugin,
+      status,
+      version,
+      timestamp: new Date().toISOString(),
+    };
+
+    const messageStr = JSON.stringify(message);
+
+    this.clientSockets.forEach((socket) => {
+      if (socket.readyState === socket.OPEN) {
+        try {
+          socket.send(messageStr);
+        } catch (error) {
+          console.error(`Failed to send plugin status to client:`, error);
+          this.clientSockets.delete(socket);
+        }
+      } else {
+        this.clientSockets.delete(socket);
+      }
+    });
+  }
+
+  /**
+   * Registers a client WebSocket connection to receive plugin status updates
+   */
+  registerClientConnection(socket: WebSocket): void {
+    this.clientSockets.add(socket);
+
+    // Send current plugin statuses to the new client (only if socket is ready)
+    if (socket.readyState === socket.OPEN) {
+      this.pluginStatuses.forEach((statusInfo, plugin) => {
+        const message = {
+          type: 'plugin_status',
+          plugin,
+          status: statusInfo.status,
+          version: statusInfo.version,
+          timestamp: new Date().toISOString(),
+        };
+
+        try {
+          socket.send(JSON.stringify(message));
+        } catch (error) {
+          console.error('Failed to send initial plugin status:', error);
+        }
+      });
+    }
+
+    // Clean up on disconnect
+    socket.on('close', () => {
+      this.clientSockets.delete(socket);
+    });
+
+    socket.on('error', () => {
+      this.clientSockets.delete(socket);
+    });
+  }
+
+  /**
+   * Gets current status of a specific plugin
+   */
+  getPluginStatus(plugin: PluginType): PluginStatusInfo | undefined {
+    return this.pluginStatuses.get(plugin);
+  }
+
+  /**
+   * Gets all plugin statuses
+   */
+  getAllPluginStatuses(): Record<PluginType, PluginStatusInfo | undefined> {
+    return {
+      revit: this.pluginStatuses.get('revit'),
+      archicad: this.pluginStatuses.get('archicad'),
+    };
   }
 
   /**

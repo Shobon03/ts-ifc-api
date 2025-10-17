@@ -19,5 +19,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { ModelTransformation } from '../components/model-transformation';
 
 export const Route = createFileRoute('/model-transformation')({
-  component: () => <ModelTransformation />,
+  component: () => (
+      <ModelTransformation />
+  ),
 });

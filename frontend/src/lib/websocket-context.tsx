@@ -15,7 +15,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { useWebSocket } from './websocket';
 import {
   type ClientMessage,
@@ -50,6 +50,13 @@ export function WebSocketProvider({
   children,
   wsUrl = 'ws://localhost:3000/models/ws/conversion',
 }: WebSocketProviderProps) {
+  useEffect(() => {
+    console.log('[WebSocketProvider] mounted');
+    return () => {
+      console.log('[WebSocketProvider] unmounted');
+    };
+  }, []);
+  
   const [jobs, setJobs] = useState<Map<string, ConversionJob>>(new Map());
   const [pluginStatuses, setPluginStatuses] = useState<
     Map<PluginType, PluginStatus>
@@ -194,6 +201,61 @@ export function WebSocketProvider({
 
       case 'error':
         console.error('[WebSocketContext] Server error:', message.error);
+        break;
+
+      // Handlers para tipos do backend Node.js
+      case 'progress':
+        // Mesmo que progress_update
+        if ((message as any).jobId) {
+          setJobs((prev) => {
+            const updated = new Map(prev);
+            const jobId = (message as any).jobId;
+            const existing = updated.get(jobId);
+
+            const jobData = {
+              jobId,
+              status: (message as any).status || JobStatus.PROCESSING,
+              progress: (message as any).progress || 0,
+              message: (message as any).message || '',
+              details: (message as any).details,
+              error: (message as any).error,
+              result: (message as any).result,
+            };
+
+            if (existing) {
+              updated.set(jobId, { ...existing, ...jobData });
+            } else {
+              updated.set(jobId, jobData as ConversionJob);
+            }
+            return updated;
+          });
+        }
+        break;
+
+      case 'status':
+        // Status inicial do job
+        if ((message as any).jobId) {
+          setJobs((prev) => {
+            const updated = new Map(prev);
+            const jobId = (message as any).jobId;
+
+            updated.set(jobId, {
+              jobId,
+              status: (message as any).status || JobStatus.QUEUED,
+              progress: (message as any).progress || 0,
+              message: (message as any).message || '',
+              fileName: (message as any).fileName,
+              createdAt: (message as any).startTime,
+              completedAt: (message as any).endTime,
+            });
+            return updated;
+          });
+        }
+        break;
+
+      case 'subscribed':
+        // Confirmação de inscrição no job
+        console.log('[WebSocketContext] Subscribed to job:', (message as any).jobId);
         break;
 
       default:

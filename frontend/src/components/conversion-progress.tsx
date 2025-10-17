@@ -15,6 +15,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { useEffect } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -22,7 +23,7 @@ import {
   Loader2,
   XCircle,
 } from 'lucide-react';
-import { useConversionJob } from '../lib/websocket-context';
+import { useConversionJob, useWebSocketContext } from '../lib/websocket-context';
 import { JobStatus } from '../lib/websocket-types';
 
 interface ConversionProgressProps {
@@ -35,9 +36,38 @@ export function ConversionProgress({
   onDownload,
 }: ConversionProgressProps) {
   const job = useConversionJob(jobId);
+  const { sendMessage, isConnected } = useWebSocketContext();
 
-  if (!jobId || !job) {
+  // Inscrever no job quando o componente montar
+  useEffect(() => {
+    if (jobId && isConnected) {
+      console.log('[ConversionProgress] Subscribing to job:', jobId);
+      sendMessage({
+        type: 'subscribe',
+        jobId,
+      });
+    }
+  }, [jobId, isConnected, sendMessage]);
+
+  if (!jobId) {
     return null;
+  }
+
+  // Mostrar loading enquanto aguarda os primeiros dados do job
+  if (!job) {
+    return (
+      <div className='w-full space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm'>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-3'>
+            <Loader2 className='h-6 w-6 text-blue-500 animate-spin' />
+            <div>
+              <h3 className='font-semibold text-gray-900'>Aguardando...</h3>
+              <p className='text-sm text-gray-600'>Conectando ao job...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const getStatusIcon = () => {
@@ -172,14 +202,24 @@ export function ConversionProgress({
               <div className='mt-4'>
                 <button
                   type='button'
-                  onClick={() =>
-                    onDownload
-                      ? onDownload(
-                          job.result!.downloadUrl,
-                          job.result!.fileName,
-                        )
-                      : window.open(job.result!.downloadUrl, '_blank')
-                  }
+                  onClick={() => {
+                    const downloadUrl = job.result!.downloadUrl;
+                    const fullUrl = downloadUrl.startsWith('http')
+                      ? downloadUrl
+                      : `${window.location.origin}${downloadUrl}`;
+
+                    if (onDownload) {
+                      onDownload(fullUrl, job.result!.fileName);
+                    } else {
+                      // Create a temporary link element to trigger download
+                      const link = document.createElement('a');
+                      link.href = fullUrl;
+                      link.download = job.result!.fileName || 'download';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }
+                  }}
                   className='inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2'
                 >
                   <Download className='h-4 w-4' />
