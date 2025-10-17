@@ -22,5 +22,5 @@ export const Route = createFileRoute('/model-validation')({
 });
 
 function RouteComponent() {
-  return <div>Hello "/model-validation"!</div>;
+  return <div>To-do</div>;
 }

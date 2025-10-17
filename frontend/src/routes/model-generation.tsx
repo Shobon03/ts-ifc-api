@@ -16,21 +16,12 @@
  */
 
 import { createFileRoute } from '@tanstack/react-router';
-import { Dropzone } from '@/components/ui/dropzone';
+import { IFCGeneration } from '../components/ifc-generation';
 
 export const Route = createFileRoute('/model-generation')({
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  return (
-    <div>
-      <Dropzone
-        title='Upload your dataset'
-        subtitle='Supported formats: CSV, JSON, XML'
-        accept='*'
-        multiple
-      />
-    </div>
-  );
+  return <IFCGeneration />;
 }
