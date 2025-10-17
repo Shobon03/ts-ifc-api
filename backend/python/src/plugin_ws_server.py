@@ -80,17 +80,19 @@ class PluginWebSocketServer:
         self._stop_requested = False
         self._lock = threading.Lock()
 
-        default_host = host if host not in {"0.0.0.0", "::"} else "127.0.0.1"
+        # Always use localhost for plugin connections (not 127.0.0.1)
+        # This is required because C# HttpListener is strict about hostname matching
+        plugin_host = "localhost"
 
         archicad_url = os.getenv("ARCHICAD_PLUGIN_WS_URL")
         if not archicad_url:
             archicad_port = os.getenv("ARCHICAD_PLUGIN_WS_PORT") or "8081"
-            archicad_url = f"ws://{default_host}:{archicad_port}"
+            archicad_url = f"ws://{plugin_host}:{archicad_port}"
 
         revit_url = os.getenv("REVIT_PLUGIN_WS_URL")
         if not revit_url:
             revit_port = os.getenv("REVIT_PLUGIN_WS_PORT") or "8082"
-            revit_url = f"ws://{default_host}:{revit_port}"
+            revit_url = f"ws://{plugin_host}:{revit_port}/"
 
         self._plugin_endpoints: Dict[PluginType, Optional[str]] = {
             PluginType.ARCHICAD: archicad_url,
@@ -466,10 +468,13 @@ class PluginWebSocketServer:
             )
             return
 
-        logger.warning(
-            "Unhandled message '%s' from %s plugin",
+        # Log unhandled messages at debug level to avoid spam
+        # This can happen with connection messages or status updates without type
+        logger.debug(
+            "Unhandled message type '%s' from %s plugin (jobId=%s)",
             message_type,
             connection.plugin_type.value,
+            job_id,
         )
 
     # ------------------------------------------------------------------
@@ -545,7 +550,7 @@ class PluginWebSocketServer:
             return False
 
         async def _send() -> None:
-            await self._send_json(connection.websocket, payload)
+            await self._send_json(connection.websocket, payload, plugin)
 
         future = asyncio.run_coroutine_threadsafe(_send(), self._loop)
         try:
@@ -564,12 +569,19 @@ class PluginWebSocketServer:
         self,
         websocket: WebSocketClientProtocol,
         payload: Dict[str, Any],
+        plugin: Optional[PluginType] = None,
     ) -> None:
-        # Use ensure_ascii=False and replace double backslashes for Windows paths
+        # Use ensure_ascii=False for proper UTF-8 encoding
         json_payload = json.dumps(payload, ensure_ascii=False)
-        # Convert double backslashes to single for Windows paths
-        # This is needed because the Archicad plugin expects single backslashes
-        json_payload = json_payload.replace('\\\\', '\\')
+
+        # Different plugins have different JSON parsing behavior:
+        # - Archicad: Expects single backslashes (non-standard JSON)
+        # - Revit: Uses Newtonsoft.Json which requires valid JSON (double backslashes)
+        if plugin == PluginType.ARCHICAD:
+            # Convert double backslashes to single for Archicad
+            json_payload = json_payload.replace('\\\\', '\\')
+        # For Revit and connection_ack messages, keep valid JSON (no replacement)
+
         logger.info(f"Sending to plugin: {json_payload}")
         await websocket.send(json_payload)
 
