@@ -37,10 +37,10 @@ export function WebSocketStatus({
   };
 
   const getStatusText = () => {
-    if (error && !isReconnecting) return 'Disconnected';
-    if (isReconnecting) return `Reconnecting... (${reconnectCount})`;
-    if (isConnected) return 'Connected';
-    return 'Connecting...';
+    if (error && !isReconnecting) return 'Disconectado';
+    if (isReconnecting) return `Reconectando... (${reconnectCount})`;
+    if (isConnected) return 'Conectado';
+    return 'Conectando...';
   };
 
   const getStatusIcon = () => {

@@ -9,7 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WebsocketDemoRouteImport } from './routes/websocket-demo'
 import { Route as ModelValidationRouteImport } from './routes/model-validation'
 import { Route as ModelTransformationRouteImport } from './routes/model-transformation'
 import { Route as ModelTransformRouteImport } from './routes/model-transform'
@@ -19,11 +18,6 @@ import { Route as ConversionRouteImport } from './routes/conversion'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 
-const WebsocketDemoRoute = WebsocketDemoRouteImport.update({
-  id: '/websocket-demo',
-  path: '/websocket-demo',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ModelValidationRoute = ModelValidationRouteImport.update({
   id: '/model-validation',
   path: '/model-validation',
@@ -74,7 +68,6 @@ export interface FileRoutesByFullPath {
   '/model-transform': typeof ModelTransformRoute
   '/model-transformation': typeof ModelTransformationRoute
   '/model-validation': typeof ModelValidationRoute
-  '/websocket-demo': typeof WebsocketDemoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -85,7 +78,6 @@ export interface FileRoutesByTo {
   '/model-transform': typeof ModelTransformRoute
   '/model-transformation': typeof ModelTransformationRoute
   '/model-validation': typeof ModelValidationRoute
-  '/websocket-demo': typeof WebsocketDemoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -97,7 +89,6 @@ export interface FileRoutesById {
   '/model-transform': typeof ModelTransformRoute
   '/model-transformation': typeof ModelTransformationRoute
   '/model-validation': typeof ModelValidationRoute
-  '/websocket-demo': typeof WebsocketDemoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -110,7 +101,6 @@ export interface FileRouteTypes {
     | '/model-transform'
     | '/model-transformation'
     | '/model-validation'
-    | '/websocket-demo'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -121,7 +111,6 @@ export interface FileRouteTypes {
     | '/model-transform'
     | '/model-transformation'
     | '/model-validation'
-    | '/websocket-demo'
   id:
     | '__root__'
     | '/'
@@ -132,7 +121,6 @@ export interface FileRouteTypes {
     | '/model-transform'
     | '/model-transformation'
     | '/model-validation'
-    | '/websocket-demo'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -144,18 +132,10 @@ export interface RootRouteChildren {
   ModelTransformRoute: typeof ModelTransformRoute
   ModelTransformationRoute: typeof ModelTransformationRoute
   ModelValidationRoute: typeof ModelValidationRoute
-  WebsocketDemoRoute: typeof WebsocketDemoRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/websocket-demo': {
-      id: '/websocket-demo'
-      path: '/websocket-demo'
-      fullPath: '/websocket-demo'
-      preLoaderRoute: typeof WebsocketDemoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/model-validation': {
       id: '/model-validation'
       path: '/model-validation'
@@ -224,7 +204,6 @@ const rootRouteChildren: RootRouteChildren = {
   ModelTransformRoute: ModelTransformRoute,
   ModelTransformationRoute: ModelTransformationRoute,
   ModelValidationRoute: ModelValidationRoute,
-  WebsocketDemoRoute: WebsocketDemoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

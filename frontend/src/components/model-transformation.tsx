@@ -15,12 +15,12 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { useState, useRef, useEffect } from 'react';
-import { Upload, FileText, AlertCircle, ArrowRight, CheckSquare } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckSquare, FileText, Trash, Upload } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useWebSocketContext } from '../lib/websocket-context';
+import { JobStatus } from '../lib/websocket-types';
 import { ConversionProgress } from './conversion-progress';
 import { PluginStatusBar } from './plugin-status-indicator';
-import { JobStatus } from '../lib/websocket-types';
 
 const ALLOWED_EXTENSIONS = ['.rvt', '.pln', '.ifc'];
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
@@ -283,7 +283,7 @@ export function ModelTransformation() {
               accept=".rvt,.pln,.ifc"
               onChange={handleFileChange}
               className="hidden"
-              id="file-upload"
+              id={"file-upload"}
             />
             <label htmlFor="file-upload" className="cursor-pointer">
               <div className="flex flex-col items-center gap-4">
@@ -311,6 +311,16 @@ export function ModelTransformation() {
                       {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
                     </p>
                   </div>
+                  <div>
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    className="text-sm text-red-600 hover:underline cursor-pointer border border-red-600 rounded-md p-2 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all"
+                    title="Remover arquivo"
+                  >
+                    <Trash className="inline h-5 w-5" />  
+                  </button>
+                </div>
                 </div>
               </div>
 
@@ -321,7 +331,7 @@ export function ModelTransformation() {
                     <button
                       type="button"
                       onClick={() => toggleConversionTarget('revit')}
-                      className={`flex flex-1 items-center justify-center gap-2 rounded-md border-2 px-4 py-3 font-semibold transition-all ${
+                      className={`flex flex-1 items-center justify-center gap-2 rounded-md border-2 px-4 py-3 font-semibold transition-all cursor-pointer ${
                         conversionTargets.includes('revit')
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
                           : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
@@ -335,7 +345,7 @@ export function ModelTransformation() {
                     <button
                       type="button"
                       onClick={() => toggleConversionTarget('archicad')}
-                      className={`flex flex-1 items-center justify-center gap-2 rounded-md border-2 px-4 py-3 font-semibold transition-all ${
+                      className={`flex flex-1 items-center justify-center gap-2 rounded-md border-2 px-4 py-3 font-semibold transition-all cursor-pointer ${
                         conversionTargets.includes('archicad')
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
                           : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
@@ -383,14 +393,14 @@ export function ModelTransformation() {
                 (getFileExtension(selectedFile?.name || '') === '.ifc' &&
                   conversionTargets.length === 0)
               }
-              className="flex-1 rounded-md bg-blue-600 px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+              className="flex-1 rounded-md bg-blue-600 px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 cursor-pointer"
             >
               {isUploading ? 'Enviando...' : 'Converter Modelo'}
             </button>
             <button
               type="button"
               onClick={handleReset}
-              className="rounded-md border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="rounded-md border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
             >
               Limpar
             </button>
@@ -404,7 +414,7 @@ export function ModelTransformation() {
           <button
             type="button"
             onClick={handleReset}
-            className="w-full rounded-md border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="w-full rounded-md border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
           >
             Nova Conversão
           </button>
