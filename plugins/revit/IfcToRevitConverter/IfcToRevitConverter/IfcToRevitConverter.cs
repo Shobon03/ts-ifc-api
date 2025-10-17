@@ -40,7 +40,7 @@ using Newtonsoft.Json;
 namespace IfcToRevitConverter
 {
     /// <summary>
-    /// Janela de status do plugin
+    /// Plugin status window
     /// </summary>
     public partial class PluginStatusForm : Form
     {
@@ -56,7 +56,7 @@ namespace IfcToRevitConverter
 
         private void InitializeComponents()
         {
-            this.Text = "Plugin Revit IFC";
+            this.Text = "IFC Conversion Plugin";
             this.Size = new System.Drawing.Size(300, 150);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
@@ -64,23 +64,23 @@ namespace IfcToRevitConverter
             this.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
             this.TopMost = true;
 
-            // Posicionar no canto superior direito
+            // Position in top right corner
             this.Location = new System.Drawing.Point(
                 Screen.PrimaryScreen.WorkingArea.Width - this.Width - 20,
                 20
             );
 
-            // Título
+            // Title
             titleLabel = new Label();
-            titleLabel.Text = "Plugin Revit .ifc → .rvt";
+            titleLabel.Text = "IFC Conversion Plugin:  .ifc → .rvt";
             titleLabel.Font = new System.Drawing.Font("Arial", 10, System.Drawing.FontStyle.Bold);
             titleLabel.Location = new System.Drawing.Point(10, 10);
             titleLabel.Size = new System.Drawing.Size(280, 20);
             this.Controls.Add(titleLabel);
 
-            // Descrição
+            // Description
             descriptionLabel = new Label();
-            descriptionLabel.Text = "Conversão automática de arquivos IFC para RVT";
+            descriptionLabel.Text = "Conversion from IFC to RVT files.";
             descriptionLabel.Font = new System.Drawing.Font("Arial", 8);
             descriptionLabel.Location = new System.Drawing.Point(10, 35);
             descriptionLabel.Size = new System.Drawing.Size(280, 15);
@@ -88,12 +88,12 @@ namespace IfcToRevitConverter
 
             // Status
             statusLabel = new Label();
-            statusLabel.Text = "Iniciando...";
+            statusLabel.Text = "Starting...";
             statusLabel.Location = new System.Drawing.Point(10, 60);
             statusLabel.Size = new System.Drawing.Size(280, 20);
             this.Controls.Add(statusLabel);
 
-            // Barra de progresso
+            // Progress bar
             progressBar = new ProgressBar();
             progressBar.Location = new System.Drawing.Point(10, 85);
             progressBar.Size = new System.Drawing.Size(260, 20);
@@ -128,7 +128,7 @@ namespace IfcToRevitConverter
     }
 
     /// <summary>
-    /// Enums para status de conversão
+    /// Enums for conversion status
     /// </summary>
     public enum ConversionStatus
     {
@@ -142,7 +142,7 @@ namespace IfcToRevitConverter
     }
 
     /// <summary>
-    /// Resultado da conversão
+    /// Conversion result
     /// </summary>
     public class ConversionResult
     {
@@ -152,7 +152,7 @@ namespace IfcToRevitConverter
     }
 
     /// <summary>
-    /// Progresso da conversão
+    /// Conversion progress
     /// </summary>
     public class ConversionProgress
     {
@@ -166,17 +166,18 @@ namespace IfcToRevitConverter
     }
 
     /// <summary>
-    /// Classe para gerenciar requisições de conversão pendentes
+    /// Class to manage pending conversion requests
     /// </summary>
     public static class ConversionRequestManager
     {
         public static bool HasPendingRequest { get; set; } = false;
         public static string PendingFilePath { get; set; } = "";
+        public static string PendingOutputPath { get; set; } = "";
         public static string PendingJobId { get; set; } = "";
     }
 
     /// <summary>
-    /// ExternalEvent Handler para executar conversão no thread principal
+    /// ExternalEvent Handler to execute conversion on the main thread
     /// </summary>
     public class ConversionEventHandler : IExternalEventHandler
     {
@@ -188,20 +189,21 @@ namespace IfcToRevitConverter
             try
             {
                 string ifcFilePath = ConversionRequestManager.PendingFilePath;
+                string outputPath = ConversionRequestManager.PendingOutputPath;
                 string jobId = ConversionRequestManager.PendingJobId;
 
-                // Reset da requisição pendente
+                // Reset pending request
                 ConversionRequestManager.HasPendingRequest = false;
 
-                // Executar conversão no thread principal
-                ExecuteConversionSync(app.Application, ifcFilePath, jobId);
+                // Execute conversion on main thread
+                ExecuteConversionSync(app.Application, ifcFilePath, outputPath, jobId);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Erro no ExternalEventHandler: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error in ExternalEventHandler: {ex.Message}");
 
                 Task.Run(async () => {
-                    await BroadcastProgress("ERROR", 0, $"Erro no processamento: {ex.Message}");
+                    await BroadcastProgress("ERROR", 0, $"Processing error: {ex.Message}");
                 });
             }
         }
@@ -211,79 +213,102 @@ namespace IfcToRevitConverter
             return "IFC Conversion Event Handler";
         }
 
-        private void ExecuteConversionSync(Application app, string ifcFilePath, string jobId)
+        private void ExecuteConversionSync(Application app, string ifcFilePath, string outputPath, string jobId)
         {
             try
             {
-                UpdateStatusWindow("Validando arquivo IFC...", 15);
-                BroadcastProgress("UPLOADING", 15, "Arquivo IFC validado, preparando para importação...").Wait();
+                // Store jobId for use in BroadcastProgress
+                IfcToRevitWebSocketCommand._staticJobId = jobId;
+
+                UpdateStatusWindow("Validating IFC file...", 15);
+                BroadcastProgress("UPLOADING", 15, "IFC file validated, preparing for import...", jobId).Wait();
 
                 if (!File.Exists(ifcFilePath))
                 {
-                    UpdateStatusWindow("Arquivo IFC não encontrado", 0);
-                    BroadcastProgress("ERROR", 0, $"Arquivo IFC não encontrado: {ifcFilePath}").Wait();
+                    UpdateStatusWindow("IFC file not found", 0);
+                    BroadcastProgress("ERROR", 0, $"IFC file not found: {ifcFilePath}", jobId).Wait();
                     return;
                 }
 
-                UpdateStatusWindow("Configurando importação...", 25);
-                BroadcastProgress("PROCESSING", 25, "Configurando opções de importação IFC...").Wait();
+                UpdateStatusWindow("Configuring import...", 25);
+                BroadcastProgress("PROCESSING", 25, "Configuring IFC import options...", jobId).Wait();
 
-                // Configurar opções de importação
+                // Configure import options
                 IFCImportOptions importOptions = new IFCImportOptions();
                 importOptions.Intent = IFCImportIntent.Reference;
                 importOptions.AutoJoin = true;
 
-                UpdateStatusWindow("Abrindo documento IFC...", 35);
-                BroadcastProgress("PROCESSING", 35, "Abrindo documento IFC...").Wait();
+                UpdateStatusWindow("Opening IFC document...", 35);
+                BroadcastProgress("PROCESSING", 35, "Opening IFC document...", jobId).Wait();
 
-                // Abrir documento IFC no thread principal
+                // Open IFC document on main thread
                 Document ifcDocument = app.OpenIFCDocument(ifcFilePath, importOptions);
 
                 if (ifcDocument == null)
                 {
-                    UpdateStatusWindow("Falha ao abrir IFC", 0);
-                    BroadcastProgress("ERROR", 0, "Falha ao abrir arquivo IFC - documento retornado como null").Wait();
+                    UpdateStatusWindow("Failed to open IFC", 0);
+                    BroadcastProgress("ERROR", 0, "Failed to open IFC file - document returned as null", jobId).Wait();
                     return;
                 }
 
-                UpdateStatusWindow("Processando elementos...", 65);
-                BroadcastProgress("PROCESSING", 65, "Documento IFC aberto com sucesso, preparando para salvar...").Wait();
+                UpdateStatusWindow("Processing elements...", 65);
+                BroadcastProgress("PROCESSING", 65, "IFC document opened successfully, preparing to save...", jobId).Wait();
 
-                string outputDirectory = Path.GetDirectoryName(ifcFilePath);
-                string outputFileName = Path.GetFileNameWithoutExtension(ifcFilePath) + $"_Converted_{DateTime.Now:yyyyMMdd_HHmmss}.rvt";
-                string rvtFilePath = Path.Combine(outputDirectory, outputFileName);
+                // Use outputPath if provided, otherwise use default naming
+                string rvtFilePath;
+                string outputFileName;
+                if (!string.IsNullOrEmpty(outputPath))
+                {
+                    rvtFilePath = outputPath;
+                    outputFileName = Path.GetFileName(outputPath);
+                    // Ensure output directory exists
+                    string outputDir = Path.GetDirectoryName(outputPath);
+                    if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
+                    {
+                        Directory.CreateDirectory(outputDir);
+                    }
+                }
+                else
+                {
+                    string outputDirectory = Path.GetDirectoryName(ifcFilePath);
+                    outputFileName = Path.GetFileNameWithoutExtension(ifcFilePath) + $"_Converted_{DateTime.Now:yyyyMMdd_HHmmss}.rvt";
+                    rvtFilePath = Path.Combine(outputDirectory, outputFileName);
+                }
 
-                UpdateStatusWindow("Salvando arquivo RVT...", 75);
-                BroadcastProgress("PROCESSING", 75, $"Salvando como: {outputFileName}...").Wait();
+                UpdateStatusWindow("Saving RVT file...", 75);
+                BroadcastProgress("PROCESSING", 75, $"Saving as: {outputFileName}...", jobId).Wait();
 
-                // Salvar documento
+                // Save document
                 SaveAsOptions saveOptions = new SaveAsOptions { OverwriteExistingFile = true };
                 ifcDocument.SaveAs(rvtFilePath, saveOptions);
 
-                UpdateStatusWindow("Finalizando processo...", 90);
-                BroadcastProgress("DOWNLOADING", 90, "Arquivo salvo, finalizando processo...").Wait();
+                UpdateStatusWindow("Finalizing process...", 90);
+                BroadcastProgress("DOWNLOADING", 90, "File saved, finalizing process...", jobId).Wait();
 
-                // Fechar documento
+                // Close document
                 ifcDocument.Close(false);
 
-                UpdateStatusWindow("Conversão concluída!", 100);
-                BroadcastProgress("COMPLETED", 100, $"Conversão concluída! Arquivo: {outputFileName}").Wait();
+                // Get file size
+                long fileSize = new FileInfo(rvtFilePath).Length;
 
-                // Resetar status após 3 segundos
+                UpdateStatusWindow("Conversion completed!", 100);
+                BroadcastProgressWithResult("COMPLETED", 100, $"Conversion completed! File: {outputFileName}", jobId, rvtFilePath, outputFileName, fileSize).Wait();
+
+                // Reset status after 3 seconds
                 Task.Delay(3000).ContinueWith(t => {
-                    UpdateStatusWindow("Aguardando comandos WebSocket...", 0);
+                    UpdateStatusWindow("Awaiting WebSocket commands...", 0);
                 });
             }
             catch (Exception ex)
             {
-                string detailedError = $"Erro na conversão: {ex.GetType().Name} - {ex.Message}";
+                string detailedError = $"Conversion error: {ex.GetType().Name} - {ex.Message}";
                 if (ex.InnerException != null)
                 {
                     detailedError += $"\nInner Exception: {ex.InnerException.Message}";
                 }
 
-                UpdateStatusWindow($"Erro: {ex.Message}", 0);
-                BroadcastProgress("ERROR", 0, detailedError).Wait();
+                UpdateStatusWindow($"Error: {ex.Message}", 0);
+                BroadcastProgress("ERROR", 0, detailedError, jobId).Wait();
 
                 System.Diagnostics.Debug.WriteLine($"Conversion Error Details: {detailedError}");
             }
@@ -297,11 +322,11 @@ namespace IfcToRevitConverter
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Erro ao atualizar janela de status: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error updating status window: {ex.Message}");
             }
         }
 
-        private static async Task BroadcastProgress(string status, int progress, string message)
+        private static async Task BroadcastProgress(string status, int progress, string message, string jobId = null)
         {
             if (IfcToRevitWebSocketCommand._staticWebSocketServer == null) return;
 
@@ -309,7 +334,8 @@ namespace IfcToRevitConverter
             {
                 var progressData = new
                 {
-                    jobId = IfcToRevitWebSocketCommand._staticJobId,
+                    type = MapStatusToMessageType(status),
+                    jobId = jobId ?? IfcToRevitWebSocketCommand._staticJobId,
                     status = status.ToLower(),
                     progress = progress,
                     message = message,
@@ -321,7 +347,61 @@ namespace IfcToRevitConverter
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Erro ao transmitir progresso: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error broadcasting progress: {ex.Message}");
+            }
+        }
+
+        private static async Task BroadcastProgressWithResult(string status, int progress, string message, string jobId, string outputPath, string fileName, long fileSize)
+        {
+            if (IfcToRevitWebSocketCommand._staticWebSocketServer == null) return;
+
+            try
+            {
+                var progressData = new
+                {
+                    type = "conversion_completed",
+                    jobId = jobId,
+                    status = status.ToLower(),
+                    progress = progress,
+                    message = message,
+                    result = new
+                    {
+                        outputPath = outputPath,
+                        fileName = fileName,
+                        fileSize = fileSize
+                    },
+                    timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                };
+
+                var json = JsonConvert.SerializeObject(progressData);
+                await IfcToRevitWebSocketCommand._staticWebSocketServer.BroadcastAsync(json);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error broadcasting progress: {ex.Message}");
+            }
+        }
+
+        public static string MapStatusToMessageType(string status)
+        {
+            switch (status.ToLower())
+            {
+                case "uploading":
+                    return "conversion_progress";
+                case "processing":
+                    return "conversion_progress";
+                case "downloading":
+                    return "conversion_progress";
+                case "completed":
+                    return "conversion_completed";
+                case "error":
+                    return "conversion_failed";
+                case "cancelled":
+                    return "conversion_cancelled";
+                case "received":
+                    return "conversion_started";
+                default:
+                    return "progress";
             }
         }
     }
@@ -354,12 +434,12 @@ namespace IfcToRevitConverter
                 _httpListener.Start();
                 _isRunning = true;
 
-                System.Diagnostics.Debug.WriteLine($"WebSocket Server iniciado em: {_url}");
+                System.Diagnostics.Debug.WriteLine($"WebSocket Server started at: {_url}");
                 _ = Task.Run(AcceptClientsAsync);
             }
             catch (Exception ex)
             {
-                throw new Exception($"Erro ao iniciar servidor WebSocket: {ex.Message}");
+                throw new Exception($"Error starting WebSocket server: {ex.Message}");
             }
         }
 
@@ -383,7 +463,7 @@ namespace IfcToRevitConverter
                 }
                 catch (Exception ex) when (_isRunning)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Erro ao aceitar cliente: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Error accepting client: {ex.Message}");
                 }
             }
         }
@@ -400,13 +480,13 @@ namespace IfcToRevitConverter
                     _connectedClients.Add(webSocket);
                 }
 
-                System.Diagnostics.Debug.WriteLine("Cliente WebSocket conectado");
+                System.Diagnostics.Debug.WriteLine("WebSocket client connected");
 
                 await SendToClient(webSocket, JsonConvert.SerializeObject(new
                 {
                     type = "connection",
                     status = "connected",
-                    message = "Conectado ao plugin Revit IFC",
+                    message = "Connected to Revit IFC plugin",
                     available_commands = new[] { "start_conversion", "get_status", "cancel_job", "update_path" }
                 }));
 
@@ -414,7 +494,7 @@ namespace IfcToRevitConverter
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Erro ao processar WebSocket: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error processing WebSocket: {ex.Message}");
             }
         }
 
@@ -431,7 +511,7 @@ namespace IfcToRevitConverter
                     if (result.MessageType == WebSocketMessageType.Text)
                     {
                         var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        System.Diagnostics.Debug.WriteLine($"Mensagem recebida: {message}");
+                        System.Diagnostics.Debug.WriteLine($"Message received: {message}");
 
                         if (OnMessageReceived != null)
                         {
@@ -446,7 +526,7 @@ namespace IfcToRevitConverter
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Erro na comunicação WebSocket: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error in WebSocket communication: {ex.Message}");
             }
             finally
             {
@@ -454,7 +534,7 @@ namespace IfcToRevitConverter
                 {
                     _connectedClients.Remove(webSocket);
                 }
-                System.Diagnostics.Debug.WriteLine("Cliente WebSocket desconectado");
+                System.Diagnostics.Debug.WriteLine("WebSocket client disconnected");
             }
         }
 
@@ -526,8 +606,8 @@ namespace IfcToRevitConverter
         public static WebSocketServer _staticWebSocketServer;
         public static string _staticJobId;
         public static PluginStatusForm _staticStatusForm;
-        private static ExternalEvent _conversionEvent;
-        private static ConversionEventHandler _conversionHandler;
+        public static ExternalEvent _conversionEvent;
+        public static ConversionEventHandler _conversionHandler;
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
@@ -553,22 +633,22 @@ namespace IfcToRevitConverter
                 }
 
                 TaskDialog infoDialog = new TaskDialog("WebSocket IFC Converter");
-                infoDialog.MainInstruction = "Modo de Escuta WebSocket Ativo";
-                infoDialog.MainContent = $"Servidor WebSocket iniciado!\n\n" +
+                infoDialog.MainInstruction = "WebSocket Listening Mode Active";
+                infoDialog.MainContent = $"WebSocket server started!\n\n" +
                                        $"🌐 URL: ws://localhost:8080/\n" +
                                        $"🆔 Job ID: {_staticJobId}\n\n" +
-                                       $"Conecte-se via WebSocket e envie comandos:\n" +
-                                       $"• start_conversion - Iniciar conversão\n" +
-                                       $"• get_status - Obter status atual\n" +
-                                       $"• cancel_job - Cancelar operação";
+                                       $"Connect via WebSocket and send commands:\n" +
+                                       $"• start_conversion - Start conversion\n" +
+                                       $"• get_status - Get current status\n" +
+                                       $"• cancel_job - Cancel operation";
 
-                infoDialog.ExpandedContent = $"Configurações atuais:\n" +
-                                           $"• Arquivo IFC: {IfcConverterConfig.DefaultIfcPath}\n" +
-                                           $"• Servidor interno: {IfcConverterConfig.UseInternalServer}\n" +
-                                           $"• WebSocket externo: {IfcConverterConfig.UseWebSocket}";
+                infoDialog.ExpandedContent = $"Current settings:\n" +
+                                           $"• IFC File: {IfcConverterConfig.DefaultIfcPath}\n" +
+                                           $"• Internal Server: {IfcConverterConfig.UseInternalServer}\n" +
+                                           $"• External WebSocket: {IfcConverterConfig.UseWebSocket}";
 
-                infoDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Manter ativo", "Deixar servidor rodando em background");
-                infoDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Fechar", "Encerrar servidor WebSocket");
+                infoDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Keep Active", "Leave server running in background");
+                infoDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Close", "Shut down WebSocket server");
 
                 TaskDialogResult result = infoDialog.Show();
 
@@ -576,12 +656,12 @@ namespace IfcToRevitConverter
                 {
                     _staticStatusForm?.CloseForm();
                     _staticWebSocketServer?.Dispose();
-                    message = "Servidor WebSocket encerrado.";
+                    message = "WebSocket server shut down.";
                 }
                 else
                 {
-                    UpdateStatusWindow("Aguardando comandos WebSocket...", 0);
-                    message = "Servidor WebSocket ativo. Aguardando comandos via WebSocket.";
+                    UpdateStatusWindow("Awaiting WebSocket commands...", 0);
+                    message = "WebSocket server active. Awaiting commands via WebSocket.";
                 }
 
                 return Result.Succeeded;
@@ -600,11 +680,11 @@ namespace IfcToRevitConverter
             {
                 _staticStatusForm = new PluginStatusForm();
                 _staticStatusForm.Show();
-                _staticStatusForm.UpdateStatus("Servidor WebSocket iniciando...", 0);
+                _staticStatusForm.UpdateStatus("WebSocket server starting...", 0);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Erro ao criar janela de status: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error creating status window: {ex.Message}");
             }
         }
 
@@ -616,7 +696,7 @@ namespace IfcToRevitConverter
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Erro ao atualizar janela de status: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error updating status window: {ex.Message}");
             }
         }
 
@@ -632,20 +712,20 @@ namespace IfcToRevitConverter
 
                 _staticWebSocketServer.StartAsync().Wait(5000);
 
-                UpdateStatusWindow("Servidor WebSocket ativo", 0);
+                UpdateStatusWindow("WebSocket server active", 0);
 
                 Task.Run(async () => {
-                    await BroadcastProgress("READY", 0, "Servidor WebSocket iniciado - Aguardando comandos");
+                    await BroadcastProgress("READY", 0, "WebSocket server started - Awaiting commands");
                 });
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Erro ao iniciar servidor WebSocket: {ex.Message}");
-                UpdateStatusWindow("Servidor WebSocket falhou", 0);
+                System.Diagnostics.Debug.WriteLine($"Error starting WebSocket server: {ex.Message}");
+                UpdateStatusWindow("WebSocket server failed", 0);
             }
         }
 
-        private static async Task ProcessWebSocketCommand(string message, Application app)
+        public static async Task ProcessWebSocketCommand(string message, Application app)
         {
             try
             {
@@ -655,33 +735,41 @@ namespace IfcToRevitConverter
                 switch (action.ToLower())
                 {
                     case "start_conversion":
-                        UpdateStatusWindow("Comando recebido: Iniciar conversão", 0);
-                        await BroadcastProgress("RECEIVED", 0, "Comando de conversão recebido");
+                        UpdateStatusWindow("Command received: Start conversion", 0);
 
-                        // Atualizar caminho se fornecido
-                        string filePath = command?.file_path?.ToString() ?? IfcConverterConfig.DefaultIfcPath;
-                        if (!string.IsNullOrEmpty(filePath))
-                        {
-                            IfcConverterConfig.DefaultIfcPath = filePath;
-                        }
+                        // Extract parameters from command
+                        string filePath = command?.file_path?.ToString()
+                            ?? command?.ifcPath?.ToString()
+                            ?? IfcConverterConfig.DefaultIfcPath;
 
-                        // Configurar requisição para ExternalEvent
+                        string outputPath = command?.output_path?.ToString()
+                            ?? command?.outputPath?.ToString()
+                            ?? "";
+
+                        string receivedJobId = command?.jobId?.ToString()
+                            ?? command?.job_id?.ToString()
+                            ?? _staticJobId;
+
+                        await BroadcastProgress("RECEIVED", 0, "Conversion command received", receivedJobId);
+
+                        // Configure request for ExternalEvent
                         ConversionRequestManager.HasPendingRequest = true;
-                        ConversionRequestManager.PendingFilePath = IfcConverterConfig.DefaultIfcPath;
-                        ConversionRequestManager.PendingJobId = _staticJobId;
+                        ConversionRequestManager.PendingFilePath = filePath;
+                        ConversionRequestManager.PendingOutputPath = outputPath;
+                        ConversionRequestManager.PendingJobId = receivedJobId;
 
-                        // Disparar ExternalEvent para executar no thread principal
+                        // Trigger ExternalEvent to execute on main thread
                         _conversionEvent.Raise();
                         break;
 
                     case "get_status":
-                        await BroadcastProgress("STATUS", 0, "Plugin ativo e aguardando comandos");
+                        await BroadcastProgress("STATUS", 0, "Plugin active and awaiting commands");
                         break;
 
                     case "cancel_job":
-                        UpdateStatusWindow("Comando recebido: Cancelar", 0);
+                        UpdateStatusWindow("Command received: Cancel", 0);
                         ConversionRequestManager.HasPendingRequest = false;
-                        await BroadcastProgress("CANCELLED", 0, "Operação cancelada via WebSocket");
+                        await BroadcastProgress("CANCELLED", 0, "Operation cancelled via WebSocket");
                         break;
 
                     case "update_path":
@@ -689,31 +777,35 @@ namespace IfcToRevitConverter
                         if (!string.IsNullOrEmpty(newPath))
                         {
                             IfcConverterConfig.DefaultIfcPath = newPath;
-                            UpdateStatusWindow($"Caminho atualizado", 0);
-                            await BroadcastProgress("PATH_UPDATED", 0, $"Caminho IFC atualizado: {Path.GetFileName(newPath)}");
+                            UpdateStatusWindow($"Path updated", 0);
+                            await BroadcastProgress("PATH_UPDATED", 0, $"IFC path updated: {Path.GetFileName(newPath)}");
                         }
                         break;
 
                     default:
-                        await BroadcastProgress("UNKNOWN", 0, $"Comando não reconhecido: {action}");
+                        await BroadcastProgress("UNKNOWN", 0, $"Unrecognized command: {action}");
                         break;
                 }
             }
             catch (Exception ex)
             {
-                await BroadcastProgress("ERROR", 0, $"Erro ao processar comando: {ex.Message}");
+                await BroadcastProgress("ERROR", 0, $"Error processing command: {ex.Message}");
             }
         }
 
-        private static async Task BroadcastProgress(string status, int progress, string message)
+        public static async Task BroadcastProgress(string status, int progress, string message, string jobId = null)
         {
             if (_staticWebSocketServer == null) return;
 
             try
             {
+                // Map status to message type
+                string messageType = ConversionEventHandler.MapStatusToMessageType(status);
+
                 var progressData = new
                 {
-                    jobId = _staticJobId,
+                    type = messageType,
+                    jobId = jobId ?? _staticJobId,
                     status = status.ToLower(),
                     progress = progress,
                     message = message,
@@ -725,7 +817,7 @@ namespace IfcToRevitConverter
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Erro ao transmitir progresso: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error transmitting progress: {ex.Message}");
             }
         }
     }
@@ -741,16 +833,16 @@ namespace IfcToRevitConverter
         {
             try
             {
-                TaskDialog fileDialog = new TaskDialog("Selecionar Arquivo IFC");
-                fileDialog.MainInstruction = "Informe o caminho do arquivo IFC";
-                fileDialog.MainContent = "Por favor, insira o caminho completo para o arquivo IFC que deseja converter.";
-                fileDialog.ExpandedContent = "Exemplo: C:\\Users\\Usuario\\Desktop\\modelo.ifc";
-                fileDialog.FooterText = $"Caminho padrão atual: {IfcConverterConfig.DefaultIfcPath}";
+                TaskDialog fileDialog = new TaskDialog("Select IFC File");
+                fileDialog.MainInstruction = "Enter the path to the IFC file";
+                fileDialog.MainContent = "Please enter the complete path to the IFC file you want to convert.";
+                fileDialog.ExpandedContent = "Example: C:\\Users\\User\\Desktop\\model.ifc";
+                fileDialog.FooterText = $"Current default path: {IfcConverterConfig.DefaultIfcPath}";
 
-                fileDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Usar caminho padrão",
-                    $"Converter: {Path.GetFileName(IfcConverterConfig.DefaultIfcPath)}");
-                fileDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Digitar novo caminho");
-                fileDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink3, "Cancelar");
+                fileDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Use default path",
+                    $"Convert: {Path.GetFileName(IfcConverterConfig.DefaultIfcPath)}");
+                fileDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Enter new path");
+                fileDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink3, "Cancel");
 
                 TaskDialogResult result = fileDialog.Show();
 
@@ -762,20 +854,20 @@ namespace IfcToRevitConverter
                         break;
 
                     case TaskDialogResult.CommandLink2:
-                        TaskDialog.Show("Instrução",
-                            "Para usar um arquivo diferente, atualize o caminho em:\n" +
-                            "IfcConverterConfig.DefaultIfcPath no código do plugin\n\n" +
-                            "Usando o caminho padrão atual para esta execução.");
+                        TaskDialog.Show("Instruction",
+                            "To use a different file, update the path in:\n" +
+                            "IfcConverterConfig.DefaultIfcPath in the plugin code\n\n" +
+                            "Using the current default path for this execution.");
                         break;
 
                     default:
-                        message = "Operação cancelada pelo usuário.";
+                        message = "Operation cancelled by user.";
                         return Result.Cancelled;
                 }
 
                 if (!File.Exists(selectedPath))
                 {
-                    message = $"Arquivo não encontrado: {selectedPath}";
+                    message = $"File not found: {selectedPath}";
                     return Result.Failed;
                 }
 
@@ -785,7 +877,7 @@ namespace IfcToRevitConverter
             }
             catch (Exception ex)
             {
-                message = $"Erro na seleção do arquivo: {ex.Message}";
+                message = $"Error in file selection: {ex.Message}";
                 return Result.Failed;
             }
         }
@@ -801,15 +893,15 @@ namespace IfcToRevitConverter
         {
             try
             {
-                TaskDialog configDialog = new TaskDialog("Configuração WebSocket");
-                configDialog.MainInstruction = "Configurar WebSocket";
-                configDialog.MainContent = $"URL atual: {IfcConverterConfig.WebSocketServerUrl}\n\n" +
-                                         $"WebSocket habilitado: {IfcConverterConfig.UseWebSocket}\n\n" +
-                                         "Deseja habilitar/desabilitar o WebSocket?";
+                TaskDialog configDialog = new TaskDialog("WebSocket Configuration");
+                configDialog.MainInstruction = "Configure WebSocket";
+                configDialog.MainContent = $"Current URL: {IfcConverterConfig.WebSocketServerUrl}\n\n" +
+                                         $"WebSocket enabled: {IfcConverterConfig.UseWebSocket}\n\n" +
+                                         "Do you want to enable/disable WebSocket?";
 
-                configDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Habilitar WebSocket");
-                configDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Desabilitar WebSocket");
-                configDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink3, "Cancelar");
+                configDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Enable WebSocket");
+                configDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Disable WebSocket");
+                configDialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink3, "Cancel");
 
                 TaskDialogResult result = configDialog.Show();
 
@@ -817,22 +909,22 @@ namespace IfcToRevitConverter
                 {
                     case TaskDialogResult.CommandLink1:
                         IfcConverterConfig.UseWebSocket = true;
-                        message = "WebSocket habilitado.";
+                        message = "WebSocket enabled.";
                         return Result.Succeeded;
 
                     case TaskDialogResult.CommandLink2:
                         IfcConverterConfig.UseWebSocket = false;
-                        message = "WebSocket desabilitado.";
+                        message = "WebSocket disabled.";
                         return Result.Succeeded;
 
                     default:
-                        message = "Configuração cancelada.";
+                        message = "Configuration cancelled.";
                         return Result.Cancelled;
                 }
             }
             catch (Exception ex)
             {
-                message = $"Erro na configuração: {ex.Message}";
+                message = $"Error in configuration: {ex.Message}";
                 return Result.Failed;
             }
         }

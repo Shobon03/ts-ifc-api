@@ -80,7 +80,7 @@ private:
  * @brief WebSocket server for Archicad plugin communication
  *
  * This server runs on port 8081 and allows bidirectional communication
- * between the Archicad plugin and the Node.js backend.
+ * between the Archicad plugin and the backend.
  *
  * Uses Boost.Beast - modern, secure, and well-maintained.
  */

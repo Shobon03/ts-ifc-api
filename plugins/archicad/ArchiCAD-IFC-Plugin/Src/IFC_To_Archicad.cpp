@@ -730,7 +730,7 @@ void StartWebSocketServer()
 	if (started) {
 		DGAlert(DG_INFORMATION, GS::UniString("Success"),
 		        GS::UniString("✓ WebSocket server started on port 8081"),
-		        GS::UniString("Listening for connections from Node.js backend"),
+		        GS::UniString("Listening for connections from backend"),
 		        GS::UniString("OK"));
 	} else {
 		DGAlert(DG_ERROR, GS::UniString("Error"),
