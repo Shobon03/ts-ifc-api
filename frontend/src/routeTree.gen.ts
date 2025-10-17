@@ -9,15 +9,29 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WebsocketDemoRouteImport } from './routes/websocket-demo'
 import { Route as ModelValidationRouteImport } from './routes/model-validation'
+import { Route as ModelTransformationRouteImport } from './routes/model-transformation'
 import { Route as ModelTransformRouteImport } from './routes/model-transform'
 import { Route as ModelGenerationRouteImport } from './routes/model-generation'
+import { Route as IfcConversionRouteImport } from './routes/ifc-conversion'
+import { Route as ConversionRouteImport } from './routes/conversion'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 
+const WebsocketDemoRoute = WebsocketDemoRouteImport.update({
+  id: '/websocket-demo',
+  path: '/websocket-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ModelValidationRoute = ModelValidationRouteImport.update({
   id: '/model-validation',
   path: '/model-validation',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModelTransformationRoute = ModelTransformationRouteImport.update({
+  id: '/model-transformation',
+  path: '/model-transformation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ModelTransformRoute = ModelTransformRouteImport.update({
@@ -28,6 +42,16 @@ const ModelTransformRoute = ModelTransformRouteImport.update({
 const ModelGenerationRoute = ModelGenerationRouteImport.update({
   id: '/model-generation',
   path: '/model-generation',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IfcConversionRoute = IfcConversionRouteImport.update({
+  id: '/ifc-conversion',
+  path: '/ifc-conversion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConversionRoute = ConversionRouteImport.update({
+  id: '/conversion',
+  path: '/conversion',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AboutRoute = AboutRouteImport.update({
@@ -44,64 +68,106 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/conversion': typeof ConversionRoute
+  '/ifc-conversion': typeof IfcConversionRoute
   '/model-generation': typeof ModelGenerationRoute
   '/model-transform': typeof ModelTransformRoute
+  '/model-transformation': typeof ModelTransformationRoute
   '/model-validation': typeof ModelValidationRoute
+  '/websocket-demo': typeof WebsocketDemoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/conversion': typeof ConversionRoute
+  '/ifc-conversion': typeof IfcConversionRoute
   '/model-generation': typeof ModelGenerationRoute
   '/model-transform': typeof ModelTransformRoute
+  '/model-transformation': typeof ModelTransformationRoute
   '/model-validation': typeof ModelValidationRoute
+  '/websocket-demo': typeof WebsocketDemoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/conversion': typeof ConversionRoute
+  '/ifc-conversion': typeof IfcConversionRoute
   '/model-generation': typeof ModelGenerationRoute
   '/model-transform': typeof ModelTransformRoute
+  '/model-transformation': typeof ModelTransformationRoute
   '/model-validation': typeof ModelValidationRoute
+  '/websocket-demo': typeof WebsocketDemoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/about'
+    | '/conversion'
+    | '/ifc-conversion'
     | '/model-generation'
     | '/model-transform'
+    | '/model-transformation'
     | '/model-validation'
+    | '/websocket-demo'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/about'
+    | '/conversion'
+    | '/ifc-conversion'
     | '/model-generation'
     | '/model-transform'
+    | '/model-transformation'
     | '/model-validation'
+    | '/websocket-demo'
   id:
     | '__root__'
     | '/'
     | '/about'
+    | '/conversion'
+    | '/ifc-conversion'
     | '/model-generation'
     | '/model-transform'
+    | '/model-transformation'
     | '/model-validation'
+    | '/websocket-demo'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  ConversionRoute: typeof ConversionRoute
+  IfcConversionRoute: typeof IfcConversionRoute
   ModelGenerationRoute: typeof ModelGenerationRoute
   ModelTransformRoute: typeof ModelTransformRoute
+  ModelTransformationRoute: typeof ModelTransformationRoute
   ModelValidationRoute: typeof ModelValidationRoute
+  WebsocketDemoRoute: typeof WebsocketDemoRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/websocket-demo': {
+      id: '/websocket-demo'
+      path: '/websocket-demo'
+      fullPath: '/websocket-demo'
+      preLoaderRoute: typeof WebsocketDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/model-validation': {
       id: '/model-validation'
       path: '/model-validation'
       fullPath: '/model-validation'
       preLoaderRoute: typeof ModelValidationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/model-transformation': {
+      id: '/model-transformation'
+      path: '/model-transformation'
+      fullPath: '/model-transformation'
+      preLoaderRoute: typeof ModelTransformationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/model-transform': {
@@ -116,6 +182,20 @@ declare module '@tanstack/react-router' {
       path: '/model-generation'
       fullPath: '/model-generation'
       preLoaderRoute: typeof ModelGenerationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ifc-conversion': {
+      id: '/ifc-conversion'
+      path: '/ifc-conversion'
+      fullPath: '/ifc-conversion'
+      preLoaderRoute: typeof IfcConversionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/conversion': {
+      id: '/conversion'
+      path: '/conversion'
+      fullPath: '/conversion'
+      preLoaderRoute: typeof ConversionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/about': {
@@ -138,9 +218,13 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  ConversionRoute: ConversionRoute,
+  IfcConversionRoute: IfcConversionRoute,
   ModelGenerationRoute: ModelGenerationRoute,
   ModelTransformRoute: ModelTransformRoute,
+  ModelTransformationRoute: ModelTransformationRoute,
   ModelValidationRoute: ModelValidationRoute,
+  WebsocketDemoRoute: WebsocketDemoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

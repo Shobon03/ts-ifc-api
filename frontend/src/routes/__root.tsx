@@ -27,6 +27,7 @@ import { Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink } from '@/components/ui/nav-link';
 import { SquareButton, SquareLinkButton } from '@/components/ui/square-button';
+import { WebSocketProvider } from '@/lib/websocket-context';
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -59,46 +60,50 @@ function RootComponent() {
   }, [location]);
 
   return (
-    <div
-      className={`min-h-screen transition-colors duration-300 ${darkMode ? 'dark' : ''}`}
-    >
-      <nav className='bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4'>
-        <div className='max-w-7xl mx-auto flex items-center justify-between'>
-          <div className='flex items-center space-x-8'>
-            <Link
-              to='/'
-              className='text-xl font-bold text-gray-900 dark:text-white'
-            >
-              IFC API
-            </Link>
-            <div className='flex space-x-6'>
-              <NavLink to='/' name='Home' />
-              <NavLink to='/about' name='Sobre' />
-              <NavLink to='/model-generation' name='Gerar IFC' />
-              <NavLink to='/model-transform' name='Transformação do Modelo' />
-              <NavLink to='/model-validation' name='Validação de IFC' />
+    <WebSocketProvider wsUrl="ws://localhost:3000/models/ws/conversion">
+      <div
+        className={`min-h-screen transition-colors duration-300 ${darkMode ? 'dark' : ''}`}
+      >
+        <nav className='bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4'>
+          <div className='max-w-7xl mx-auto flex items-center justify-between'>
+            <div className='flex items-center space-x-8'>
+              <Link
+                to='/'
+                className='text-xl font-bold text-gray-900 dark:text-white'
+              >
+                IFC API
+              </Link>
+              <div className='flex space-x-6'>
+                <NavLink to='/' name='Home' />
+                <NavLink to='/about' name='Sobre' />
+                <NavLink to='/ifc-conversion' name='Conversão IFC' />
+                <NavLink to='/model-transformation' name='Transformação .rvt ↔ .pln' />
+                <NavLink to='/model-generation' name='Gerar IFC' />
+                <NavLink to='/model-validation' name='Validação de IFC' />
+                <NavLink to='/websocket-demo' name='WebSocket Demo' />
+              </div>
+            </div>
+            <div className='flex items-center space-x-4'>
+              <SquareLinkButton
+                href='https://github.com/Shobon03/ts-ifc-api'
+                title='Repositório do GitHub'
+              >
+                <SiGithub size={20} title='' />
+              </SquareLinkButton>
+              <SquareButton
+                onClick={() => setDarkMode(!darkMode)}
+                title={`Mudar para modo ${darkMode ? 'claro' : 'escuro'}`}
+              >
+                {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+              </SquareButton>
             </div>
           </div>
-          <div className='flex items-center space-x-4'>
-            <SquareLinkButton
-              href='https://github.com/Shobon03/ts-ifc-api'
-              title='Repositório do GitHub'
-            >
-              <SiGithub size={20} title='' />
-            </SquareLinkButton>
-            <SquareButton
-              onClick={() => setDarkMode(!darkMode)}
-              title={`Mudar para modo ${darkMode ? 'claro' : 'escuro'}`}
-            >
-              {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-            </SquareButton>
-          </div>
-        </div>
-      </nav>
-      <main className='bg-white dark:bg-gray-900 text-gray-900 dark:text-white'>
-        <Outlet />
-      </main>
-      <TanStackRouterDevtools initialIsOpen={false} />
-    </div>
+        </nav>
+        <main className='bg-white dark:bg-gray-900 text-gray-900 dark:text-white'>
+          <Outlet />
+        </main>
+        <TanStackRouterDevtools initialIsOpen={false} />
+      </div>
+    </WebSocketProvider>
   );
 }

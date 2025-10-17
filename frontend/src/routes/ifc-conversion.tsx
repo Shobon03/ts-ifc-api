@@ -15,9 +15,9 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { createFileRoute } from '@tanstack/react-router';
+import { FileConversionWithWebSocket } from '../components/file-conversion-with-websocket';
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+export const Route = createFileRoute('/ifc-conversion')({
+  component: () => <FileConversionWithWebSocket />,
+});
