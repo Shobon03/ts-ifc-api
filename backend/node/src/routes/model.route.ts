@@ -19,7 +19,7 @@ import type { MultipartFile, MultipartValue } from '@fastify/multipart';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { promises as fs } from 'fs';
-import { basename, extname } from 'path';
+import path, { basename, extname } from 'path';
 import z from 'zod';
 import {
   sendFileToArchicadPythonServiceWS,
@@ -214,7 +214,7 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
       },
     },
     handler: async (request, reply) => {
-      const { file, type } = request.body;
+      const { file } = request.body;
 
       try {
         const fileType = file.filename?.toLowerCase().split('.').pop();
@@ -254,7 +254,9 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
         }
       } catch (error) {
         app.log.error('Error when processing model generation:', error);
-        return reply.status(400).send({ error: error.message });
+        return reply.status(400).send({
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
       }
     },
   });
@@ -287,16 +289,26 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
       const { filePath, resultType } = request.body;
 
       try {
+        // Convert URL path to filesystem path
+        // Example: /download/conversion/job-xxx/file.ifc -> backend/node/public/conversion/job-xxx/file.ifc
+        let actualFilePath = filePath;
+
+        if (filePath.startsWith('/download/conversion/')) {
+          // Remove the /download/conversion/ prefix and construct the actual path
+          const relativePath = filePath.replace('/download/conversion/', '');
+          actualFilePath = path.join(process.cwd(), 'public', 'conversion', relativePath);
+        }
+
         // Validate file path exists and is an IFC file
         try {
-          await fs.access(filePath);
+          await fs.access(actualFilePath);
         } catch {
           return reply.status(400).send({
-            error: `File not found: ${filePath}`,
+            error: `File not found: ${actualFilePath}`,
           });
         }
 
-        const ext = extname(filePath).toLowerCase();
+        const ext = extname(actualFilePath).toLowerCase();
         if (ext !== '.ifc') {
           return reply.status(400).send({
             error: 'Only IFC files can be converted. File must have .ifc extension',
@@ -304,12 +316,12 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
         }
 
         // Generate job ID
-        const jobId = wsManager.createJobWithoutSocket(basename(filePath));
+        const jobId = wsManager.createJobWithoutSocket(basename(actualFilePath));
 
         // Route to appropriate conversion service based on target format
         if (resultType === 'rvt') {
           // Send to Revit plugin via Python (IFC to RVT)
-          sendFileToRevitPythonServiceWS(filePath, basename(filePath), jobId).catch(
+          sendFileToRevitPythonServiceWS(actualFilePath, basename(actualFilePath), jobId).catch(
             (error) => {
               console.error(`Revit conversion failed for job ${jobId}:`, error);
               wsManager.handleJobError(jobId, (error as Error).message);
@@ -323,7 +335,7 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
           });
         } else if (resultType === 'pln') {
           // Send to Archicad plugin via Python (IFC to PLN)
-          sendIfcToArchicadPythonServiceWS(filePath, basename(filePath), jobId).catch(
+          sendIfcToArchicadPythonServiceWS(actualFilePath, basename(actualFilePath), jobId).catch(
             (error) => {
               console.error(`Archicad conversion failed for job ${jobId}:`, error);
               wsManager.handleJobError(jobId, (error as Error).message);

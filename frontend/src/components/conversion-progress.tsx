@@ -29,11 +29,13 @@ import { JobStatus } from '../lib/websocket-types';
 interface ConversionProgressProps {
   jobId: string | null;
   onDownload?: (url: string, fileName: string) => void;
+  hideDownload?: boolean;
 }
 
 export function ConversionProgress({
   jobId,
   onDownload,
+  hideDownload = false,
 }: ConversionProgressProps) {
   const job = useConversionJob(jobId);
   const { sendMessage, isConnected } = useWebSocketContext();
@@ -179,7 +181,7 @@ export function ConversionProgress({
         </div>
       )}
 
-      {job.status === JobStatus.COMPLETED && job.result && (
+      {job.status === JobStatus.COMPLETED && job.result && !hideDownload && (
         <div className='rounded-md bg-green-50 p-4'>
           <div className='flex items-start'>
             <CheckCircle2 className='h-5 w-5 text-green-400' />
@@ -192,12 +194,14 @@ export function ConversionProgress({
                   Arquivo:{' '}
                   <span className='font-medium'>{job.result.fileName}</span>
                 </p>
-                <p>
-                  Tamanho:{' '}
-                  <span className='font-medium'>
-                    {formatFileSize(job.result.fileSize)}
-                  </span>
-                </p>
+                {job.result.fileSize !== undefined && job.result.fileSize !== null && !isNaN(job.result.fileSize) && (
+                  <p>
+                    Tamanho:{' '}
+                    <span className='font-medium'>
+                      {formatFileSize(job.result.fileSize)}
+                    </span>
+                  </p>
+                )}
               </div>
               <div className='mt-4'>
                 <button
@@ -231,6 +235,28 @@ export function ConversionProgress({
         </div>
       )}
 
+      {job.status === JobStatus.COMPLETED && job.result && hideDownload && (
+        <div className='rounded-md bg-blue-50 p-4'>
+          <div className='flex items-start'>
+            <CheckCircle2 className='h-5 w-5 text-blue-400' />
+            <div className='ml-3 flex-1'>
+              <h3 className='text-sm font-medium text-blue-800'>
+                Etapa concluída!
+              </h3>
+              <div className='mt-2 text-sm text-blue-700'>
+                <p>
+                  Arquivo intermediário gerado:{' '}
+                  <span className='font-medium'>{job.result.fileName}</span>
+                </p>
+                <p className='mt-1 italic'>
+                  Aguardando conclusão de todas as conversões...
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {job.createdAt && (
         <div className='text-xs text-gray-500'>
           Iniciado em: {new Date(job.createdAt).toLocaleString('pt-BR')}
@@ -246,7 +272,11 @@ export function ConversionProgress({
   );
 }
 
-function formatFileSize(bytes: number): string {
+function formatFileSize(bytes: number | undefined | null): string {
+  if (bytes === undefined || bytes === null || isNaN(bytes)) {
+    return 'Tamanho desconhecido';
+  }
+
   if (bytes === 0) return '0 Bytes';
 
   const k = 1024;

@@ -254,14 +254,25 @@ async function monitorConversionProgress(
       }
 
       if (status === 'inprogress') {
-        const manifestProgress =
-          progress === 'complete'
-            ? 100
-            : Number.parseInt(progress.replace('%', ''), 10) || 0;
-        const progressPercent = Math.min(70 + manifestProgress * 0.2, 89);
+        // The progress field can be a percentage string like "50%" or the word "complete"
+        let manifestProgress = 0;
+
+        if (progress === 'complete') {
+          manifestProgress = 100;
+        } else if (typeof progress === 'string') {
+          // Remove % sign and parse
+          const numericProgress = Number.parseInt(progress.replace('%', ''), 10);
+          manifestProgress = isNaN(numericProgress) ? 0 : numericProgress;
+        } else if (typeof progress === 'number') {
+          manifestProgress = progress;
+        }
+
+        // Map 0-100 manifest progress to 70-89 overall progress
+        const progressPercent = Math.min(70 + manifestProgress * 0.19, 89);
+
         wsManager.updateProgress(
           jobId,
-          progressPercent,
+          Math.round(progressPercent),
           ConversionStatus.PROCESSING,
           `Conversion in progress: ${manifestProgress}%`,
         );

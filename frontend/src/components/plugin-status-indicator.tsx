@@ -70,10 +70,10 @@ export function PluginStatusIndicator({
   };
 
   return (
-    <div className={`inline-flex items-center gap-2 ${className}`}>
-      <Circle className={`h-3 w-3 ${getStatusColor()} fill-current`} />
+    <div className={`inline-flex items-center gap-2 select-none ${className}`} title={status === 'connected' ? 'Plugin está conectado' : 'Plugin não está conectado'}>
+      <Circle className={`h-3 w-3 ${getStatusColor()} fill-current select-none`} />
       {showLabel && (
-        <span className="text-sm text-gray-700">
+        <span className="text-sm text-gray-700 select-none" >
           <span className="font-medium">{getPluginName()}</span>: {getStatusText()}
         </span>
       )}

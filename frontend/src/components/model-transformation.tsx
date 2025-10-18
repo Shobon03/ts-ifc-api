@@ -408,9 +408,25 @@ export function ModelTransformation() {
         </div>
       ) : (
         <div className="space-y-6">
-          {currentJobIds.map((jobId) => (
-            <ConversionProgress key={jobId} jobId={jobId} />
-          ))}
+          {currentJobIds.map((jobId, index) => {
+            // Verificar se todos os jobs foram completados
+            const allJobsCompleted = currentJobIds.every(id => {
+              const job = jobs.get(id);
+              return job && job.status === JobStatus.COMPLETED;
+            });
+
+            // Apenas o último job em cadeia deve mostrar download quando tudo estiver completo
+            // Ou qualquer job pode mostrar download se for o único (sem conversão em cadeia)
+            const shouldShowDownload = allJobsCompleted || currentJobIds.length === 1;
+
+            return (
+              <ConversionProgress
+                key={jobId}
+                jobId={jobId}
+                hideDownload={!shouldShowDownload}
+              />
+            );
+          })}
           <button
             type="button"
             onClick={handleReset}

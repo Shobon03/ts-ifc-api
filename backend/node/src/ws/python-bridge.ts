@@ -16,6 +16,8 @@
  */
 
 import type { WebSocket } from 'ws';
+import { existsSync, statSync } from 'node:fs';
+import path from 'node:path';
 import { ConversionStatus, wsManager } from './websocket';
 
 /**
@@ -273,6 +275,17 @@ class PythonBridgeManager {
           fileName = pathParts[pathParts.length - 1];
         }
       }
+
+      // Get file size from the actual file if not provided by Python
+      if (!fileSize && existsSync(outputPath)) {
+        try {
+          const stats = statSync(outputPath);
+          fileSize = stats.size;
+          console.log(`Retrieved file size from filesystem: ${fileSize} bytes`);
+        } catch (error) {
+          console.warn(`Failed to get file size for ${outputPath}:`, error);
+        }
+      }
     }
 
     wsManager.completeJob(message.jobId, {
@@ -358,23 +371,42 @@ class PythonBridgeManager {
   registerClientConnection(socket: WebSocket): void {
     this.clientSockets.add(socket);
 
-    // Send current plugin statuses to the new client (only if socket is ready)
-    if (socket.readyState === socket.OPEN) {
-      this.pluginStatuses.forEach((statusInfo, plugin) => {
+    console.log('[PythonBridge] Client registered for plugin status updates');
+    console.log('[PythonBridge] Current plugin statuses:', {
+      revit: this.pluginStatuses.get('revit'),
+      archicad: this.pluginStatuses.get('archicad'),
+    });
+
+    // Send current plugin statuses to the new client
+    // If we have status info, send it. Otherwise, send 'disconnected' as default
+    const sendInitialStatus = () => {
+      ['revit', 'archicad'].forEach((pluginType) => {
+        const statusInfo = this.pluginStatuses.get(pluginType as PluginType);
         const message = {
           type: 'plugin_status',
-          plugin,
-          status: statusInfo.status,
-          version: statusInfo.version,
+          plugin: pluginType,
+          status: statusInfo?.status || 'disconnected',
+          version: statusInfo?.version,
           timestamp: new Date().toISOString(),
         };
 
         try {
-          socket.send(JSON.stringify(message));
+          if (socket.readyState === socket.OPEN) {
+            socket.send(JSON.stringify(message));
+            console.log(`[PythonBridge] Sent initial ${pluginType} status to client:`, message.status);
+          }
         } catch (error) {
-          console.error('Failed to send initial plugin status:', error);
+          console.error(`Failed to send initial ${pluginType} status:`, error);
         }
       });
+    };
+
+    // Send statuses immediately if socket is open
+    if (socket.readyState === socket.OPEN) {
+      sendInitialStatus();
+    } else {
+      // Otherwise wait for socket to open
+      socket.on('open', sendInitialStatus);
     }
 
     // Clean up on disconnect

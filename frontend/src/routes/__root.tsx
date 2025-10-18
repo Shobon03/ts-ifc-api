@@ -79,7 +79,6 @@ function RootComponent() {
             <div className="hidden md:flex items-center space-x-6">
               <NavLink to="/" name="Home" />
               <NavLink to="/about" name="Sobre" />
-              <NavLink to="/ifc-conversion" name="Conversão IFC" />
               <NavLink
                 to="/model-transformation"
                 name="Transformação .rvt ↔ .pln"
@@ -121,7 +120,6 @@ function RootComponent() {
               <div className="flex flex-col space-y-2">
                 <NavLink to="/" name="Home" />
                 <NavLink to="/about" name="Sobre" />
-                <NavLink to="/ifc-conversion" name="Conversão IFC" />
                 <NavLink
                   to="/model-transformation"
                   name="Transformação .rvt ↔ .pln"
