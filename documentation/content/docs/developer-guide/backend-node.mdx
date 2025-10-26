@@ -9,7 +9,7 @@ O backend Node.js é construído com **Fastify 5** e oferece uma API REST comple
 
 **Tecnologias**: Fastify, TypeScript, Zod, WebSocket, Axios, Multipart
 
-**Porta padrão**: 3001
+**Porta padrão**: 3000
 
 ## Estrutura
 
@@ -34,7 +34,7 @@ backend/node/src/
 
 ## Endpoints Principais
 
-### POST /api/models/generate-ifc
+### POST /models/generate-ifc
 
 Converte Revit (.rvt) para IFC via Autodesk Forge.
 
@@ -63,7 +63,7 @@ export const generateIfc = async (
 
 **Request**:
 ```bash
-curl -X POST http://localhost:3001/api/models/generate-ifc \
+curl -X POST http://localhost:3000/models/generate-ifc \
   -F "file=@model.rvt"
 ```
 
@@ -76,9 +76,9 @@ curl -X POST http://localhost:3001/api/models/generate-ifc \
 }
 ```
 
-### POST /api/models/validate
+### POST /models/validate
 
-Valida arquivo IFC.
+Valida arquivo IFC (em desenvolvimento).
 
 ```typescript
 export const validateIfc = async (
@@ -98,12 +98,12 @@ export const validateIfc = async (
 }
 ```
 
-### WS /ws/conversion-progress
+### WS /models/ws/conversion
 
-WebSocket para atualizações em tempo real.
+WebSocket para atualizações em tempo real de conversões.
 
 ```typescript
-fastify.get('/ws/conversion-progress', { websocket: true }, (connection, req) => {
+fastify.get('/models/ws/conversion', { websocket: true }, (connection, req) => {
   connection.socket.on('message', (message) => {
     const data = JSON.parse(message.toString())
 
@@ -113,11 +113,13 @@ fastify.get('/ws/conversion-progress', { websocket: true }, (connection, req) =>
     }
   })
 
-  // Envia progresso
+  // Envia progresso em tempo real
   setInterval(() => {
     connection.socket.send(JSON.stringify({
-      type: 'progress',
-      percentage: currentProgress,
+      type: 'job_update',
+      jobId: 'job-123',
+      status: 'processing',
+      progress: currentProgress,
       message: 'Converting...'
     }))
   }, 1000)
@@ -357,7 +359,7 @@ export const buildApp = async () => {
   })
 
   // Routes
-  await fastify.register(modelRoutes, { prefix: '/api' })
+  await fastify.register(modelRoutes, { prefix: '/models' })
   await fastify.register(healthRoutes)
 
   return fastify
@@ -386,12 +388,12 @@ export const buildApp = async () => {
 import { test } from 'vitest'
 import { buildApp } from '../src/app'
 
-test('POST /api/models/generate-ifc', async () => {
+test('POST /models/generate-ifc', async () => {
   const app = await buildApp()
 
   const response = await app.inject({
     method: 'POST',
-    url: '/api/models/generate-ifc',
+    url: '/models/generate-ifc',
     payload: {
       file: createReadStream('test-model.rvt')
     }

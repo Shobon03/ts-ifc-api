@@ -1,35 +1,35 @@
 # Build & Deployment Guide
 
-Este guia descreve como fazer o build e executar o **ts-ifc-api** em produção.
+This guide describes how to build and run **ts-ifc-api** in production.
 
-## 📋 Pré-requisitos
+## 📋 Prerequisites
 
-### Software Necessário
-- **Node.js** >= 18.0.0
+### Required Software
+- **Node.js** >= 22.0.0 (LTS)
 - **pnpm** >= 8.0.0
-- **Python** >= 3.8
+- **Python** >= 3.13
 - **Git**
 
-### Plugins Desktop (Opcionais)
-Para funcionalidade completa de conversão:
-- **Revit Plugin** - Para conversões Revit ↔ IFC
-- **Archicad Plugin** - Para conversões Archicad ↔ IFC
+### Desktop Plugins (Optional)
+For complete conversion functionality:
+- **Revit Plugin** - For Revit ↔ IFC conversions
+- **Archicad Plugin** - For Archicad ↔ IFC conversions
 
 ---
 
-## 🚀 Setup Inicial
+## 🚀 Initial Setup
 
 ### Windows
 
 ```bash
-# Clonar repositório
+# Clone repository
 git clone https://github.com/Shobon03/ts-ifc-api.git
 cd ts-ifc-api
 
-# Executar script de setup
+# Run setup script
 scripts\setup.bat
 
-# OU manualmente:
+# OR manually:
 pnpm install
 cd backend\python
 python -m venv venv
@@ -42,17 +42,17 @@ cd ..\..
 ### Linux/Mac
 
 ```bash
-# Clonar repositório
+# Clone repository
 git clone https://github.com/Shobon03/ts-ifc-api.git
 cd ts-ifc-api
 
-# Dar permissão de execução aos scripts
+# Grant execution permission to scripts
 chmod +x scripts/*.sh
 
-# Executar script de setup
+# Run setup script
 ./scripts/setup.sh
 
-# OU manualmente:
+# OR manually:
 pnpm install
 cd backend/python
 python3 -m venv venv
@@ -62,9 +62,9 @@ deactivate
 cd ../..
 ```
 
-### Configuração de Ambiente
+### Environment Configuration
 
-Crie um arquivo `.env` na raiz do projeto:
+Create a `.env` file in the project root:
 
 ```env
 # Node.js Backend
@@ -91,9 +91,9 @@ JOB_CLEANUP_INTERVAL_SECONDS=60
 
 ---
 
-## 🔨 Build para Produção
+## 🔨 Production Build
 
-### Opção 1: Usando Scripts (Recomendado)
+### Option 1: Using Scripts (Recommended)
 
 **Windows:**
 ```bash
@@ -105,42 +105,42 @@ scripts\build.bat
 ./scripts/build.sh
 ```
 
-### Opção 2: Usando pnpm
+### Option 2: Using pnpm
 
 ```bash
-# Build completo (Node + Frontend + Docs)
+# Full build (Node + Frontend + Docs)
 pnpm build
 
-# Build individual
+# Individual builds
 pnpm build:backend      # Node.js backend
 pnpm build:frontend     # React frontend
 pnpm build:documentation # VitePress docs
 ```
 
-### O que o Build Faz
+### What the Build Does
 
 1. **Node.js Backend** (`backend/node`)
-   - Compila TypeScript → JavaScript
-   - Saída: `backend/node/dist/`
+   - Compiles TypeScript → JavaScript
+   - Output: `backend/node/dist/`
 
 2. **Frontend** (`frontend`)
-   - Compila React + Vite
-   - Otimiza assets (minify, tree-shaking)
-   - Saída: `frontend/dist/`
+   - Compiles React + Vite
+   - Optimizes assets (minify, tree-shaking)
+   - Output: `frontend/dist/`
 
 3. **Documentation** (`documentation`)
-   - Compila VitePress
-   - Saída: `documentation/.vitepress/dist/`
+   - Compiles VitePress
+   - Output: `documentation/.vitepress/dist/`
 
 4. **Python Backend** (`backend/python`)
-   - ⚠️ Python não precisa de build (interpretado)
-   - Certifique-se de que as dependências estão instaladas
+   - ⚠️ Python doesn't require build (interpreted)
+   - Ensure dependencies are installed
 
 ---
 
-## ▶️ Execução em Produção
+## ▶️ Running in Production
 
-### Opção 1: Todos os Serviços (Recomendado)
+### Option 1: All Services (Recommended)
 
 **Windows:**
 ```bash
@@ -152,17 +152,17 @@ scripts\start.bat
 ./scripts/start.sh
 ```
 
-**OU via pnpm:**
+**OR via pnpm:**
 ```bash
 pnpm start
 ```
 
-Isso inicia:
+This starts:
 - **Node.js Backend**: http://localhost:3000
 - **Python Backend**: http://localhost:5000
-- **Frontend**: Servido pelo Node.js em http://localhost:3000
+- **Frontend**: Served by Node.js at http://localhost:3000
 
-### Opção 2: Serviços Individuais
+### Option 2: Individual Services
 
 **Node.js Backend:**
 ```bash
@@ -172,7 +172,7 @@ scripts\start-backend.bat
 # Linux/Mac
 ./scripts/start-backend.sh
 
-# OU
+# OR
 pnpm start:backend
 ```
 
@@ -184,65 +184,65 @@ scripts\start-python.bat
 # Linux/Mac
 ./scripts/start-python.sh
 
-# OU
+# OR
 pnpm start:python           # Windows
 pnpm start:python:unix      # Linux/Mac
 ```
 
 ---
 
-## 🧪 Desenvolvimento
+## 🧪 Development
 
-Para desenvolvimento com hot-reload:
+For development with hot-reload:
 
 ```bash
-# Todos os serviços em modo dev
+# All services in dev mode
 pnpm dev
 
-# Serviços individuais
-pnpm dev:backend        # Node.js (porta 3000)
-pnpm dev:python         # Python (porta 5000)
-pnpm dev:frontend       # Vite dev server (porta 3001)
-pnpm dev:documentation  # VitePress (porta 5173)
+# Individual services
+pnpm dev:backend        # Node.js (port 3000)
+pnpm dev:python         # Python (port 5000)
+pnpm dev:frontend       # Vite dev server (port 3001)
+pnpm dev:documentation  # VitePress (port 5173)
 ```
 
 ---
 
-## 📂 Estrutura de Diretórios Após Build
+## 📂 Directory Structure After Build
 
 ```
 ts-ifc-api/
 ├── backend/
 │   ├── node/
-│   │   └── dist/              # ✅ Compilado TypeScript
+│   │   └── dist/              # ✅ Compiled TypeScript
 │   └── python/
-│       ├── src/               # ✅ Código fonte Python
-│       └── venv/              # ✅ Ambiente virtual Python
+│       ├── src/               # ✅ Python source code
+│       └── venv/              # ✅ Python virtual environment
 ├── frontend/
-│   └── dist/                  # ✅ Build otimizado React
+│   └── dist/                  # ✅ Optimized React build
 ├── documentation/
-│   └── .vitepress/dist/       # ✅ Documentação estática
-├── scripts/                   # ✅ Scripts de automação
-└── storage/                   # Arquivos de conversão (criado em runtime)
+│   └── .vitepress/dist/       # ✅ Static documentation
+├── scripts/                   # ✅ Automation scripts
+└── storage/                   # Conversion files (created at runtime)
 ```
 
 ---
 
-## 🔍 Verificação
+## 🔍 Verification
 
 ### Health Checks
 
-**Backend Node.js:**
+**Node.js Backend:**
 ```bash
 curl http://localhost:3000/health
 ```
 
-**Backend Python:**
+**Python Backend:**
 ```bash
 curl http://localhost:5000/health
 ```
 
-**Resposta esperada:**
+**Expected response:**
 ```json
 {
   "status": "ok",
@@ -260,13 +260,13 @@ curl http://localhost:5000/health
 
 ## 🐛 Troubleshooting
 
-### Erro: "Backend not built"
+### Error: "Backend not built"
 ```bash
-# Execute o build novamente
+# Run the build again
 pnpm build
 ```
 
-### Erro: "Virtual environment not found"
+### Error: "Virtual environment not found"
 ```bash
 # Windows
 cd backend\python
@@ -281,7 +281,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Erro: "Port already in use"
+### Error: "Port already in use"
 ```bash
 # Windows
 netstat -ano | findstr :3000
@@ -291,26 +291,26 @@ taskkill /PID <PID> /F
 lsof -ti:3000 | xargs kill -9
 ```
 
-### Plugins não conectam
-1. Verifique se Revit/Archicad estão abertos
-2. Verifique se os plugins estão instalados e habilitados
-3. Verifique os logs do Python para mensagens de conexão
-4. Confirme as portas no `.env`: `REVIT_PLUGIN_WS_PORT` e `ARCHICAD_PLUGIN_WS_PORT`
+### Plugins won't connect
+1. Check if Revit/Archicad are open
+2. Verify plugins are installed and enabled
+3. Check Python logs for connection messages
+4. Confirm ports in `.env`: `REVIT_PLUGIN_WS_PORT` and `ARCHICAD_PLUGIN_WS_PORT`
 
 ---
 
-## 📦 Deploy
+## 📦 Deployment
 
-### Produção com PM2 (Node.js Process Manager)
+### Production with PM2 (Node.js Process Manager)
 
 ```bash
-# Instalar PM2
+# Install PM2
 npm install -g pm2
 
 # Build
 pnpm build
 
-# Criar arquivo ecosystem.config.js
+# Create ecosystem.config.js file
 ```
 
 **ecosystem.config.js:**
@@ -344,22 +344,22 @@ module.exports = {
 ```
 
 ```bash
-# Iniciar com PM2
+# Start with PM2
 pm2 start ecosystem.config.js
 
-# Configurar para iniciar no boot
+# Configure to start on boot
 pm2 startup
 pm2 save
 ```
 
-### Docker (Futuro)
+### Docker (Future)
 
-> ⚠️ Dockerfile ainda não implementado. Contribuições são bem-vindas!
+> ⚠️ Dockerfile not yet implemented. Contributions are welcome!
 
 ---
 
-## 📝 Licença
+## 📝 License
 
-Este projeto está licenciado sob **GPL-3.0-or-later**.
+This project is licensed under **GPL-3.0-or-later**.
 
 Copyright (C) 2025 Matheus Piovezan Teixeira

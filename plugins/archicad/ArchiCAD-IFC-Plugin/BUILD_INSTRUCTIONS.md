@@ -11,7 +11,7 @@
   - Download: https://cmake.org/download/
   - Add to PATH during installation
 
-- **Python 3.7+** (for resource compilation)
+- **Python 3.13** (for resource compilation)
   - Download: https://www.python.org/downloads/
   - Add to PATH during installation
 

@@ -4,6 +4,7 @@ description: Plataforma para conversão e validação de arquivos entre Revit, A
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card';
+import { Mermaid } from '@/components/mermaid';
 
 ## Bem-vindo
 
@@ -38,14 +39,14 @@ O **Sistema de Interoperabilidade BIM** é uma plataforma completa para facilita
 
 **IFC (Industry Foundation Classes)** é um formato de arquivo padrão internacional para Building Information Modeling (BIM). Funciona como um "tradutor universal" permitindo que diferentes softwares de arquitetura compartilhem informações de forma padronizada.
 
-```mermaid
+<Mermaid chart={`
 graph LR
     A[Revit .rvt] -->|Conversão| B[IFC]
     C[Archicad .pln] -->|Conversão| B
     B -->|Importação| A
     B -->|Importação| C
     B -->|Uso em| D[Outros Softwares BIM]
-```
+`} />
 
 ## Arquitetura do Sistema
 

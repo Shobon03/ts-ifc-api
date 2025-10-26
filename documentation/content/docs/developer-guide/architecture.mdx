@@ -4,12 +4,13 @@ description: Visão completa da arquitetura e componentes do sistema
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout';
+import { Mermaid } from '@/components/mermaid';
 
 ## Visão Geral
 
 O Sistema de Interoperabilidade BIM é construído com uma arquitetura modular baseada em **monorepo** com múltiplos workspaces npm.
 
-```mermaid
+<Mermaid chart={`
 graph TB
     subgraph "Frontend"
         FE[React App<br/>TanStack Router]
@@ -47,7 +48,7 @@ graph TB
     style REV fill:#0696d7
     style ARCH fill:#1c8fe5
     style APS fill:#e91e63
-```
+`} />
 
 ## Estrutura do Projeto
 
@@ -123,42 +124,49 @@ ts-ifc-api/
 
 **Fluxo de Dados**:
 ```typescript
-// Exemplo de conversão Revit→IFC
+// Exemplo de conversão Revit→IFC com WebSocketProvider
+import { useWebSocketContext } from '../contexts/WebSocketContext'
+
 const ConversionFlow = () => {
-  // 1. Usuário seleciona arquivo
+  // 1. Acessa contexto global WebSocket
+  const { jobs, sendMessage } = useWebSocketContext()
+
+  // 2. Usuário seleciona arquivo
   const [file, setFile] = useState<File>()
 
-  // 2. Upload via fetch
+  // 3. Upload via fetch
   const upload = async () => {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await fetch('/api/models/generate-ifc', {
+    const response = await fetch('/models/generate-ifc', {
       method: 'POST',
       body: formData
     })
+
+    const { jobId } = await response.json()
+
+    // WebSocket automaticamente recebe atualizações via Provider
   }
 
-  // 3. WebSocket para progresso
-  const ws = useWebSocket('/ws/conversion-progress')
-  ws.on('progress', (data) => {
-    setProgress(data.percentage)
-  })
-
-  // 4. Download resultado
-  ws.on('completed', (data) => {
-    downloadFile(data.fileUrl)
-  })
+  // 4. Monitora progresso via jobs Map
+  const job = jobs.get(jobId)
+  
+  useEffect(() => {
+    if (job?.status === 'completed') {
+      // Download automático ou notificação
+      downloadFile(job.outputPath)
+    }
+  }, [job])
 }
 ```
 
 **Rotas Principais**:
 - `/` - Landing page
-- `/ifc-conversion` - Revit → IFC
-- `/archicad-conversion` - Archicad → IFC
-- `/model-transformation` - IFC → Revit
-- `/conversion` - Interface genérica
-- `/websocket-demo` - Demonstração WS
+- `/about` - Sobre o projeto
+- `/model-generation` - Revit/Archicad → IFC
+- `/model-transformation` - IFC → Revit/Archicad (conversões em cadeia)
+- `/model-validation` - Validação IFC (em desenvolvimento)
 
 ### 2. Backend Node.js (Fastify)
 

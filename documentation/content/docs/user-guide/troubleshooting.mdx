@@ -71,6 +71,297 @@ import { Steps, Step } from 'fumadocs-ui/components/steps';
 
 ---
 
+## Problemas de Conexão WebSocket
+
+### WebSocket Desconectado (🔴)
+
+**Sintomas**:
+- Indicador vermelho no header
+- Mensagem "Desconectado"
+- Progresso não atualiza em tempo real
+- Conversões não iniciam
+
+**Causas**:
+- Backend Node.js não está rodando
+- Firewall bloqueando porta 3000
+- Conexão de internet instável
+- Navegador bloqueando WebSocket
+
+**Soluções**:
+
+<Steps>
+
+<Step>
+
+### Verificar Backend
+
+```bash
+# Abra em outra aba:
+http://localhost:3000/health
+
+# Deve mostrar:
+{
+  "status": "ok",
+  "services": { ... }
+}
+
+# Se não abrir: backend está offline
+```
+
+</Step>
+
+<Step>
+
+### Recarregar Página
+
+```
+1. Pressione F5 ou Ctrl+R
+2. Aguarde reconexão automática (até 5 tentativas)
+3. Indicador deve ficar 🟡 Amarelo (Reconectando)
+4. Depois deve ficar 🟢 Verde (Conectado)
+```
+
+</Step>
+
+<Step>
+
+### Verificar Console do Navegador
+
+```
+1. Pressione F12 (DevTools)
+2. Vá para aba Console
+3. Procure mensagens de erro WebSocket
+4. Exemplos de erros:
+   - "WebSocket connection failed"
+   - "ERR_CONNECTION_REFUSED"
+   - "WebSocket closed with code 1006"
+```
+
+</Step>
+
+<Step>
+
+### Verificar Firewall
+
+Se você é administrador do sistema:
+
+**Windows:**
+```
+1. Painel de Controle → Firewall do Windows
+2. Configurações Avançadas → Regras de Entrada
+3. Verifique se porta 3000 (TCP) está permitida
+4. Crie regra se necessário
+```
+
+**Linux:**
+```bash
+sudo ufw allow 3000/tcp
+```
+
+</Step>
+
+</Steps>
+
+<Callout type="info">
+  O sistema tenta **reconectar automaticamente** até 5 vezes, com intervalo de 3 segundos entre tentativas. Se falhar todas as tentativas, você verá 🔴 Desconectado permanentemente.
+</Callout>
+
+### WebSocket Reconectando Continuamente (🟡)
+
+**Sintomas**:
+- Indicador amarelo piscando
+- Mensagem "Reconectando (N/5)"
+- Nunca consegue conectar
+
+**Causas**:
+- Backend reiniciando constantemente
+- Problema de rede intermitente
+- Proxy/VPN interferindo
+
+**Soluções**:
+
+1. **Aguarde 30 segundos**: Pode ser restart temporário do backend
+
+2. **Desabilite VPN/Proxy**: Podem interferir em WebSocket
+
+3. **Troque de rede**: Teste em outra conexão (ex: hotspot móvel)
+
+4. **Verifique logs do backend** (admin):
+   ```bash
+   # Backend Node.js
+   pnpm dev:backend
+   # Procure por erros no console
+   ```
+
+---
+
+## Problemas com Status de Plugins
+
+### Plugin Revit Desconectado (🔴)
+
+**Sintomas**:
+- Indicador mostra: 🔴 **Revit: Desconectado**
+- Conversões IFC → Revit não funcionam
+- Mensagem de erro ao tentar converter
+
+**Causas**:
+- Revit não está aberto
+- Plugin não está instalado
+- Plugin não inicializou
+- WebSocket do plugin na porta errada
+
+**Soluções** (para administrador do servidor):
+
+<Steps>
+
+<Step>
+
+### Verificar Revit Aberto
+
+```
+1. Revit 2025.4 deve estar aberto
+2. Plugin deve aparecer no menu Add-Ins
+3. Clique no botão "IFC Converter" para iniciar
+```
+
+</Step>
+
+<Step>
+
+### Verificar Plugin Instalado
+
+```
+Caminho de instalação:
+C:\ProgramData\Autodesk\Revit\Addins\2025\IfcToRevitConverter\
+
+Arquivos necessários:
+- IfcToRevitConverter.dll
+- IfcToRevitConverter.addin
+- websocket-sharp.dll
+- Newtonsoft.Json.dll
+```
+
+</Step>
+
+<Step>
+
+### Verificar Porta WebSocket
+
+```
+Plugin Revit usa porta 8082
+
+# Verificar se está em uso:
+netstat -an | findstr "8082"
+
+# Deve mostrar:
+TCP    0.0.0.0:8082    0.0.0.0:0    LISTENING
+```
+
+</Step>
+
+<Step>
+
+### Testar Conexão Manual
+
+```bash
+# Instalar wscat:
+npm install -g wscat
+
+# Conectar ao plugin:
+wscat -c ws://localhost:8082
+
+# Deve mostrar:
+Connected (press CTRL+C to quit)
+
+# Enviar ping:
+> {"command":"ping"}
+
+# Deve receber:
+< {"type":"pong"}
+```
+
+</Step>
+
+</Steps>
+
+<Callout type="warn">
+  O plugin Revit roda **localmente no servidor**, não no computador do usuário. Apenas administradores do sistema podem configurá-lo.
+</Callout>
+
+### Plugin Archicad Desconectado (🔴)
+
+**Sintomas**:
+- Indicador mostra: 🔴 **Archicad: Desconectado**
+- Conversões Archicad → IFC não funcionam
+- Conversões IFC → Archicad não funcionam
+
+**Causas**:
+- Archicad não está aberto
+- Plugin C++ não está instalado
+- Servidor Python não está rodando
+- Plugin não inicializou
+
+**Soluções** (para administrador do servidor):
+
+<Steps>
+
+<Step>
+
+### Verificar Archicad Aberto
+
+```
+1. Archicad 28.4 deve estar aberto
+2. Vá para: Options → Add-On Manager
+3. Procure por "ArchiCAD-IFC-Plugin"
+4. Deve estar marcado como ativo
+```
+
+</Step>
+
+<Step>
+
+### Verificar Plugin Instalado
+
+```
+Caminho de instalação:
+C:\Program Files\GRAPHISOFT\ARCHICAD 28\Add-Ons\ArchiCAD-IFC-Plugin.apx
+
+Se não existir, compile e instale o plugin:
+Ver: /docs/plugins/archicad
+```
+
+</Step>
+
+<Step>
+
+### Verificar Servidor Python
+
+```bash
+# Verificar se Python está rodando:
+curl http://localhost:5000/health
+
+# Deve retornar:
+{
+  "status": "ok",
+  "archicad": "connected"
+}
+
+# Se não responder, inicie o servidor:
+cd backend/python
+source venv/bin/activate  # Windows: venv\Scripts\activate
+python src/server.py
+```
+
+</Step>
+
+</Steps>
+
+<Callout type="info">
+  O plugin Archicad está em desenvolvimento (~65% completo) e ainda não usa WebSocket. Ele se comunica via HTTP através do servidor Python.
+</Callout>
+
+---
+
 ## Problemas de Conversão
 
 ### Conversão trava ou não inicia

@@ -1,42 +1,42 @@
 # 📋 Deploy Checklist
 
-Use este checklist para garantir um deploy bem-sucedido do **ts-ifc-api**.
+Use this checklist to ensure a successful deployment of **ts-ifc-api**.
 
 ---
 
-## ✅ Pré-Deploy
+## ✅ Pre-Deploy
 
-### Ambiente
-- [ ] Node.js >= 18.0.0 instalado
-- [ ] pnpm >= 8.0.0 instalado
-- [ ] Python >= 3.8 instalado
-- [ ] Git instalado
+### Environment
+- [ ] Node.js >= 22.0.0 (LTS) installed
+- [ ] pnpm >= 8.0.0 installed
+- [ ] Python >= 3.13 installed
+- [ ] Git installed
 
-### Código
-- [ ] Repositório clonado: `git clone https://github.com/Shobon03/ts-ifc-api.git`
-- [ ] Na branch correta: `git checkout main`
-- [ ] Código atualizado: `git pull origin main`
+### Code
+- [ ] Repository cloned: `git clone https://github.com/Shobon03/ts-ifc-api.git`
+- [ ] On correct branch: `git checkout main`
+- [ ] Code updated: `git pull origin main`
 
-### Configuração
-- [ ] Arquivo `.env` criado a partir de `.env.example`
-- [ ] Variáveis de ambiente configuradas:
+### Configuration
+- [ ] `.env` file created from `.env.example`
+- [ ] Environment variables configured:
   - [ ] `NODE_ENV=production`
   - [ ] `PORT=3000`
   - [ ] `FLASK_PORT=5000`
-  - [ ] `CORS_ORIGINS` configurado
-  - [ ] Portas dos plugins (8081, 8082)
-  - [ ] `JOB_STORAGE_ROOT` definido
+  - [ ] `CORS_ORIGINS` configured
+  - [ ] Plugin ports (8081, 8082)
+  - [ ] `JOB_STORAGE_ROOT` defined
 
 ---
 
 ## 🔧 Setup
 
-### Dependências
-- [ ] Node.js dependencies instaladas: `pnpm install`
-- [ ] Python venv criado: `cd backend/python && python -m venv venv`
-- [ ] Python dependencies instaladas: `pip install -r requirements.txt`
+### Dependencies
+- [ ] Node.js dependencies installed: `pnpm install`
+- [ ] Python venv created: `cd backend/python && python -m venv venv`
+- [ ] Python dependencies installed: `pip install -r requirements.txt`
 
-**Ou use o script:**
+**Or use the script:**
 - [ ] Windows: `scripts\setup.bat`
 - [ ] Linux/Mac: `./scripts/setup.sh`
 
@@ -44,150 +44,150 @@ Use este checklist para garantir um deploy bem-sucedido do **ts-ifc-api**.
 
 ## 🔨 Build
 
-### Compilação
-- [ ] Build executado com sucesso
+### Compilation
+- [ ] Build executed successfully
   - Windows: `scripts\build.bat`
   - Linux/Mac: `./scripts/build.sh`
   - pnpm: `pnpm build`
 
-### Verificação do Build
-- [ ] `backend/node/dist/server.js` existe
-- [ ] `frontend/dist/index.html` existe
-- [ ] `documentation/.vitepress/dist/index.html` existe
-- [ ] Sem erros de TypeScript
-- [ ] Sem erros de build do Vite
+### Build Verification
+- [ ] `backend/node/dist/server.js` exists
+- [ ] `frontend/dist/index.html` exists
+- [ ] `documentation/.next/static/` exists
+- [ ] No TypeScript errors
+- [ ] No Vite build errors
 
 ---
 
-## 🚀 Execução
+## 🚀 Execution
 
-### Teste Local (Produção)
-- [ ] Serviços iniciam sem erro:
+### Local Test (Production Mode)
+- [ ] Services start without errors:
   - Windows: `scripts\start.bat`
   - Linux/Mac: `./scripts/start.sh`
   - pnpm: `pnpm start`
 
 ### Health Checks
-- [ ] Backend Node.js responde: `curl http://localhost:3000/health`
-- [ ] Backend Python responde: `curl http://localhost:5000/health`
-- [ ] Frontend acessível: http://localhost:3000
-- [ ] API Docs acessível: http://localhost:3000/docs
+- [ ] Backend Node.js responds: `curl http://localhost:3000/health`
+- [ ] Backend Python responds: `curl http://localhost:5000/health`
+- [ ] Frontend accessible: http://localhost:3000
+- [ ] API Docs accessible: http://localhost:3000/docs
 
-### Funcionalidades
-- [ ] Interface web carrega corretamente
-- [ ] WebSocket conecta (console do navegador)
-- [ ] Status dos plugins aparece (mesmo se desconectado)
-- [ ] Upload de arquivo funciona
-- [ ] Conversão funciona (se plugins instalados)
-- [ ] Download de arquivo funciona
+### Features
+- [ ] Web interface loads correctly
+- [ ] WebSocket connects (check browser console)
+- [ ] Plugin status indicators appear (even if disconnected)
+- [ ] File upload works
+- [ ] Conversion works (if plugins installed)
+- [ ] File download works
 
 ---
 
-## 🔌 Plugins Desktop (Opcional)
+## 🔌 Desktop Plugins (Optional)
 
-Se estiver usando conversões Revit/Archicad:
+If using Revit/Archicad conversions:
 
 ### Revit Plugin
-- [ ] Plugin instalado no Revit
-- [ ] Revit aberto
-- [ ] Plugin conectado (status: verde na interface)
-- [ ] Logs Python mostram: `Revit plugin connected`
+- [ ] Plugin installed in Revit
+- [ ] Revit running
+- [ ] Plugin connected (status: green in interface)
+- [ ] Python logs show: `Revit plugin connected`
 
 ### Archicad Plugin
-- [ ] Plugin instalado no Archicad
-- [ ] Archicad aberto
-- [ ] Plugin conectado (status: verde na interface)
-- [ ] Logs Python mostram: `Archicad plugin connected`
+- [ ] Plugin installed in Archicad
+- [ ] Archicad running
+- [ ] Plugin connected (status: green in interface)
+- [ ] Python logs show: `Archicad plugin connected`
 
 ---
 
-## 🏭 Deploy Produção (PM2)
+## 🏭 Production Deploy (PM2)
 
 ### PM2 Setup
-- [ ] PM2 instalado globalmente: `npm install -g pm2`
-- [ ] Arquivo `ecosystem.config.js` configurado
-- [ ] Caminho do Python ajustado (Windows/Linux)
+- [ ] PM2 installed globally: `npm install -g pm2`
+- [ ] `ecosystem.config.js` file configured
+- [ ] Python path adjusted (Windows/Linux)
 
-### PM2 Execução
-- [ ] Serviços iniciados: `pm2 start ecosystem.config.js`
-- [ ] Status verificado: `pm2 status`
-- [ ] Logs verificados: `pm2 logs`
-- [ ] Sem erros nos logs
+### PM2 Execution
+- [ ] Services started: `pm2 start ecosystem.config.js`
+- [ ] Status verified: `pm2 status`
+- [ ] Logs verified: `pm2 logs`
+- [ ] No errors in logs
 
-### PM2 Persistência
-- [ ] Startup configurado: `pm2 startup`
-- [ ] Configuração salva: `pm2 save`
-- [ ] Testado após reboot
-
----
-
-## 🔒 Segurança
-
-### Produção
-- [ ] `NODE_ENV=production` configurado
-- [ ] `FLASK_DEBUG=False` configurado
-- [ ] CORS configurado corretamente (não usar `*` em produção)
-- [ ] Secrets/API keys em variáveis de ambiente (não no código)
-- [ ] `.env` no `.gitignore`
-
-### Rede
-- [ ] Firewall configurado
-- [ ] Apenas portas necessárias expostas
-- [ ] HTTPS configurado (se aplicável)
-- [ ] Reverse proxy configurado (Nginx/Apache, se aplicável)
+### PM2 Persistence
+- [ ] Startup configured: `pm2 startup`
+- [ ] Configuration saved: `pm2 save`
+- [ ] Tested after reboot
 
 ---
 
-## �� Monitoramento
+## 🔒 Security
+
+### Production
+- [ ] `NODE_ENV=production` configured
+- [ ] `FLASK_DEBUG=False` configured
+- [ ] CORS configured correctly (don't use `*` in production)
+- [ ] Secrets/API keys in environment variables (not in code)
+- [ ] `.env` in `.gitignore`
+
+### Network
+- [ ] Firewall configured
+- [ ] Only necessary ports exposed
+- [ ] HTTPS configured (if applicable)
+- [ ] Reverse proxy configured (Nginx/Apache, if applicable)
+
+---
+
+## 📊 Monitoring
 
 ### Logs
-- [ ] Logs sendo gerados corretamente
-- [ ] Rotação de logs configurada
-- [ ] Logs sem erros recorrentes
+- [ ] Logs being generated correctly
+- [ ] Log rotation configured
+- [ ] No recurring errors in logs
 
 ### Performance
-- [ ] Uso de CPU aceitável (`pm2 monit`)
-- [ ] Uso de memória aceitável (`pm2 monit`)
-- [ ] Disco com espaço disponível
-- [ ] Cleanup de jobs funcionando
+- [ ] Acceptable CPU usage (`pm2 monit`)
+- [ ] Acceptable memory usage (`pm2 monit`)
+- [ ] Disk space available
+- [ ] Job cleanup working
 
 ---
 
-## 🧹 Pós-Deploy
+## 🧹 Post-Deploy
 
-### Verificação Final
-- [ ] Todas as funcionalidades testadas
-- [ ] Documentação acessível
-- [ ] API respondendo corretamente
-- [ ] WebSocket funcionando
-- [ ] Conversões funcionando (se aplicável)
+### Final Verification
+- [ ] All features tested
+- [ ] Documentation accessible
+- [ ] API responding correctly
+- [ ] WebSocket working
+- [ ] Conversions working (if applicable)
 
-### Documentação
-- [ ] README.md atualizado
-- [ ] BUILD.md revisado
-- [ ] Changelog atualizado (se aplicável)
-- [ ] Issues conhecidas documentadas
+### Documentation
+- [ ] README.md updated
+- [ ] BUILD.md reviewed
+- [ ] Changelog updated (if applicable)
+- [ ] Known issues documented
 
 ### Backup
-- [ ] Backup do `.env` (em local seguro)
-- [ ] Backup da configuração PM2
-- [ ] Backup de dados importantes
+- [ ] Backup of `.env` (in secure location)
+- [ ] Backup of PM2 configuration
+- [ ] Backup of important data
 
 ---
 
 ## 🆘 Troubleshooting
 
-### Serviços não iniciam
+### Services won't start
 ```bash
-# Verificar builds
+# Check builds
 ls backend/node/dist/server.js
 ls frontend/dist/index.html
 
-# Rebuildar se necessário
+# Rebuild if necessary
 pnpm build
 ```
 
-### Portas em uso
+### Ports in use
 ```bash
 # Windows
 netstat -ano | findstr :3000
@@ -197,7 +197,7 @@ taskkill /PID <PID> /F
 lsof -ti:3000 | xargs kill -9
 ```
 
-### Python venv não encontrado
+### Python venv not found
 ```bash
 cd backend/python
 python -m venv venv
@@ -205,7 +205,7 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### PM2 não persiste após reboot
+### PM2 doesn't persist after reboot
 ```bash
 pm2 startup
 pm2 save
@@ -213,12 +213,12 @@ pm2 save
 
 ---
 
-## 📞 Suporte
+## 📞 Support
 
 - **Issues**: https://github.com/Shobon03/ts-ifc-api/issues
-- **Documentação**: Veja BUILD.md e README.md
-- **Logs**: `pm2 logs` para PM2, ou console para desenvolvimento
+- **Documentation**: See BUILD.md and README.md
+- **Logs**: `pm2 logs` for PM2, or console for development
 
 ---
 
-**✅ Deploy completo quando todos os itens estiverem marcados!**
+**✅ Deploy complete when all items are checked!**

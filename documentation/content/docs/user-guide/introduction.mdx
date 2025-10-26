@@ -4,6 +4,7 @@ description: Entenda o que é o Sistema de Interoperabilidade BIM e para que ele
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout';
+import { Mermaid } from '@/components/mermaid';
 
 ## Bem-vindo ao Sistema de Interoperabilidade BIM
 
@@ -35,21 +36,25 @@ Pense no IFC como:
 - Um tradutor universal entre softwares
 - Uma linguagem comum que todos entendem
 
-```mermaid
+<Mermaid chart={`
 graph TB
-    subgraph "Antes - Incompatível"
-        A1[Revit .rvt] -.X.-> B1[Archicad]
-        C1[Archicad .pln] -.X.-> D1[Revit]
+    subgraph Antes["❌ Antes - Incompatível"]
+        A1["Revit (.rvt)"] -.X.-> B1["Archicad"]
+        C1["Archicad (.pln)"] -.X.-> D1["Revit"]
     end
 
-    subgraph "Agora - Com IFC"
-        A2[Revit .rvt] -->|Exporta| E[IFC .ifc]
-        F[Archicad .pln] -->|Exporta| E
-        E -->|Importa| G[Revit]
-        E -->|Importa| H[Archicad]
-        E -->|Importa| I[Outros BIM]
+    subgraph Agora["✅ Agora - Com IFC"]
+        A2["Revit (.rvt)"] -->|Exporta| E["IFC (.ifc)"]
+        F["Archicad (.pln)"] -->|Exporta| E
+        E -->|Importa| G["Revit"]
+        E -->|Importa| H["Archicad"]
+        E -->|Importa| I["Outros BIM"]
     end
-```
+
+    style Antes fill:#fff2f0,stroke:#ff4d4f,stroke-width:2px
+    style Agora fill:#f0f9ff,stroke:#1890ff,stroke-width:2px
+    style E fill:#52c41a,stroke:#389e0d,stroke-width:3px,color:#fff
+`} />
 
 ### O que o Sistema Faz
 
@@ -64,8 +69,10 @@ O sistema automatiza e facilita todo o processo de conversão:
 
 - **Interface Simples**: Você não precisa ser um expert em BIM. A interface é intuitiva e fácil de usar.
 - **Processamento Automático**: Apenas faça upload do arquivo e deixe o sistema fazer todo o trabalho.
-- **Progresso em Tempo Real**: Acompanhe cada etapa da conversão com feedback visual constante.
-- **Validação Integrada**: Verifique se seus arquivos IFC estão corretos antes de compartilhar.
+- **Progresso em Tempo Real**: Acompanhe cada etapa da conversão via WebSocket com feedback visual constante.
+- **Conversões em Cadeia**: O sistema pode converter automaticamente Revit → IFC → Archicad em uma única operação.
+- **Internacionalização**: Interface disponível em Português e Inglês.
+- **Drag-and-Drop**: Arraste arquivos diretamente para a área de upload.
 
 ## Quem Pode Usar
 
@@ -98,11 +105,16 @@ Para evitar confusões, é importante esclarecer:
 ❌ **NÃO é um editor BIM**: Você não pode editar modelos 3D no sistema
 ❌ **NÃO é um visualizador**: Não exibe os modelos 3D (apenas converte)
 ❌ **NÃO substitui Revit/Archicad**: É uma ferramenta complementar
-❌ **NÃO armazena arquivos**: Seus projetos são deletados após a conversão
+❌ **NÃO armazena arquivos**: Seus projetos são deletados após a conversão (com TTL configurável)
 
 ✅ **É um conversor**: Transforma arquivos entre formatos
-✅ **É um validador**: Verifica a integridade de IFCs
 ✅ **É uma ponte**: Conecta diferentes softwares BIM
+✅ **É um orquestrador**: Gerencia conversões em cadeia automaticamente
+✅ **É um monitor**: Acompanha status dos plugins em tempo real
+
+<Callout type="warn">
+  A funcionalidade de **validação de IFC** ainda não está implementada no backend. Use ferramentas externas como IfcOpenShell ou BIMCollab ZOOM enquanto isso.
+</Callout>
 
 ## Casos de Uso Comuns
 
@@ -110,12 +122,13 @@ Para evitar confusões, é importante esclarecer:
 
 **Situação**: Arquiteto usa Revit, engenheiro estrutural usa Archicad
 
-**Solução**:
-1. Arquiteto exporta `.rvt` para IFC no sistema
-2. Engenheiro importa IFC no Archicad
-3. Engenheiro trabalha no projeto
-4. Engenheiro exporta `.pln` para IFC
-5. Arquiteto importa IFC de volta no Revit
+**Solução com o sistema**:
+1. Arquiteto acessa `/model-transformation`
+2. Faz upload do arquivo `.rvt`
+3. Seleciona "Archicad (.pln)" como destino
+4. Sistema converte automaticamente: Revit → IFC → Archicad
+5. Engenheiro recebe arquivo `.pln` pronto para usar
+6. Quando terminar, engenheiro faz o processo inverso: `.pln` → `.rvt`
 
 ### 2. Migração de Software
 
@@ -168,36 +181,77 @@ Para evitar confusões, é importante esclarecer:
   Sempre verifique o arquivo convertido no software de destino para garantir que todas as informações essenciais foram preservadas.
 </Callout>
 
+## Páginas do Sistema
+
+O sistema possui as seguintes páginas principais:
+
+### 🏠 **Home** (`/`)
+Página inicial com:
+- Apresentação visual interativa (canvas com efeitos)
+- Cards destacando recursos (Revit, Archicad, Validação)
+- Botão de acesso rápido para conversão
+
+### ℹ️ **Sobre** (`/about`)
+Informações sobre:
+- O projeto e seus objetivos
+- Tecnologias utilizadas
+- Recursos principais
+- Links para documentação
+
+### 🔄 **Geração de IFC** (`/model-generation`)
+Conversão simples:
+- Upload de arquivo `.rvt` ou `.pln`
+- Conversão direta para `.ifc`
+- Progresso em tempo real
+- Download automático
+
+### 🔀 **Transformação de Modelos** (`/model-transformation`)
+Conversões em cadeia:
+- Upload de qualquer formato (`.rvt`, `.pln`, `.ifc`)
+- Seleção de formato(s) de destino
+- Conversão automática em múltiplas etapas
+- Exemplo: Revit → IFC → Archicad (automático)
+- Suporte para múltiplos destinos simultâneos
+
+### ✅ **Validação de IFC** (`/model-validation`)
+<Callout type="warn" title="🚧 Em Desenvolvimento">
+  Esta página existe na interface, mas a funcionalidade de validação ainda não está implementada no backend.
+</Callout>
+
 ## Fluxo de Trabalho Recomendado
 
 Para obter os melhores resultados:
 
-```typescript
-// Fluxo ideal de conversão
-const workflow = {
-  step1: "Prepare o modelo no software original",
-  // Remova elementos desnecessários
-  // Verifique se não há erros no modelo
-  // Salve uma versão limpa
+### Passo 1: Preparação
+- Remova elementos desnecessários do modelo
+- Verifique se não há erros no modelo original
+- Salve uma versão limpa
+- Feche o arquivo no software original
 
-  step2: "Faça upload no sistema",
-  // Use a interface web
-  // Aguarde a conversão
+### Passo 2: Upload
+- Acesse `/model-generation` (conversão simples) ou `/model-transformation` (conversão em cadeia)
+- Verifique status dos plugins (🟢 conectado)
+- Arraste o arquivo ou clique para selecionar
+- Verifique se WebSocket está conectado (🟢)
 
-  step3: "Valide o IFC gerado",
-  // Use o validador do sistema
-  // Corrija erros se houver
+### Passo 3: Conversão
+- Clique em "Converter" e aguarde
+- Acompanhe progresso em tempo real
+- Mantenha a aba do navegador aberta
+- Não interrompa o processo
 
-  step4: "Teste no software de destino",
-  // Abra o arquivo convertido
-  // Verifique elementos importantes
-  // Confirme que tudo está correto
+### Passo 4: Validação
+- Baixe o arquivo convertido
+- Abra no software de destino
+- Verifique elementos importantes
+- Confirme que propriedades foram preservadas
+- Use ferramentas externas de validação IFC (IfcOpenShell, BIMCollab)
 
-  step5: "Use em produção",
-  // Compartilhe com a equipe
-  // Integre no fluxo de trabalho
-}
-```
+### Passo 5: Produção
+- Guarde backup do arquivo original
+- Compartilhe arquivo convertido com equipe
+- Documente problemas encontrados
+- Integre no fluxo de trabalho
 
 ## Próximos Passos
 

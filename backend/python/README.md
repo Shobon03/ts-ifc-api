@@ -11,10 +11,10 @@ This is the Python backend service that handles Archicad integration for the ts-
 
 ## Prerequisites
 
-- Python 3.9 or higher
-- Archicad 28 installed and running
+- **Python 3.13** (or 3.8+)
+- **Archicad 28.4** installed and running
 - Archicad API enabled (Options → Work Environment → API)
-- Node.js backend running on port 3000
+- **Node.js backend** running on port 3000
 
 ## Installation
 

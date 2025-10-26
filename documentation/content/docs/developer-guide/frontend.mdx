@@ -7,7 +7,8 @@ description: Aplicação React com TanStack Router
 
 Frontend construído com **React 19**, **TanStack Router** e **Tailwind CSS**.
 
-**Porta**: 5173 (Vite dev server)
+**Porta dev**: 3001 (Vite dev server)
+**Porta produção**: 3000 (servido pelo backend Node.js)
 
 ## Estrutura
 
@@ -16,14 +17,17 @@ frontend/src/
 ├── main.tsx                // Entry point
 ├── routes/                 // File-based routing
 │   ├── __root.tsx          // Root layout
-│   ├── index.tsx           // Home page
-│   ├── ifc-conversion.tsx
-│   ├── conversion.tsx
-│   └── model-transformation.tsx
+│   ├── index.tsx           // Home/Landing page
+│   ├── about.tsx           // Sobre o projeto
+│   ├── model-generation.tsx    // Geração de IFC
+│   ├── model-transformation.tsx // Conversão e transformação
+│   └── model-validation.tsx     // Validação IFC
 ├── components/
 │   ├── file-conversion-with-websocket.tsx
 │   ├── conversion-progress.tsx
 │   └── websocket-status.tsx
+├── contexts/
+│   └── WebSocketContext.tsx    // Global WebSocket Provider
 ├── hooks/
 │   ├── useWebSocket.ts
 │   └── useFileUpload.ts
@@ -47,44 +51,50 @@ frontend/src/
 
 ```typescript
 // routes/__root.tsx
-import { createRootRoute, Outlet } from '@tanstack/react-router'
+import { createRootRoute, Outlet, Link } from '@tanstack/react-router'
+import { WebSocketProvider } from '../contexts/WebSocketContext'
 
 export const Route = createRootRoute({
   component: () => (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex justify-between h-16">
-            <div className="flex space-x-8">
-              <Link to="/">Home</Link>
-              <Link to="/ifc-conversion">IFC Conversion</Link>
-              <Link to="/conversion">Conversion</Link>
+    <WebSocketProvider wsUrl='ws://localhost:3000/models/ws/conversion'>
+      <div className="min-h-screen bg-gray-50">
+        <nav className="bg-white shadow">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="flex justify-between h-16">
+              <div className="flex space-x-8">
+                <Link to="/">Início</Link>
+                <Link to="/about">Sobre</Link>
+                <Link to="/model-generation">Geração de IFC</Link>
+                <Link to="/model-transformation">Transformação</Link>
+                <Link to="/model-validation">Validação</Link>
+              </div>
             </div>
           </div>
-        </div>
-      </nav>
+        </nav>
 
-      <main className="max-w-7xl mx-auto py-6">
-        <Outlet />
-      </main>
-    </div>
+        <main className="max-w-7xl mx-auto py-6">
+          <Outlet />
+        </main>
+      </div>
+    </WebSocketProvider>
   )
 })
 ```
 
 ```typescript
-// routes/ifc-conversion.tsx
+// routes/model-generation.tsx
 import { createFileRoute } from '@tanstack/react-router'
 import { FileConversionWithWebSocket } from '../components/file-conversion-with-websocket'
 
-export const Route = createFileRoute('/ifc-conversion')({
-  component: IfcConversionPage
+export const Route = createFileRoute('/model-generation')({
+  component: ModelGenerationPage
 })
 
-function IfcConversionPage() {
+function ModelGenerationPage() {
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Revit to IFC Conversion</h1>
+      <h1 className="text-3xl font-bold">Geração de IFC</h1>
+      <p className="text-gray-600">Converta arquivos Revit (.rvt) ou Archicad (.pln) para IFC</p>
       <FileConversionWithWebSocket />
     </div>
   )
@@ -188,46 +198,99 @@ export function ConversionProgress({ progress, message, status }) {
 }
 ```
 
-## Hooks Customizados
+## WebSocket Context Provider
 
-### useWebSocket
+### Global WebSocket State
+
+O frontend usa um **WebSocketProvider** global para gerenciar uma única conexão WebSocket compartilhada por toda a aplicação.
 
 ```typescript
-// hooks/useWebSocket.ts
-import { useEffect, useState, useRef } from 'react'
+// contexts/WebSocketContext.tsx
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 
-export function useWebSocket(url: string) {
+interface Job {
+  jobId: string
+  status: 'pending' | 'processing' | 'completed' | 'error'
+  progress: number
+  message: string
+  outputPath?: string
+}
+
+interface WebSocketContextValue {
+  isConnected: boolean
+  jobs: Map<string, Job>
+  sendMessage: (message: any) => void
+}
+
+const WebSocketContext = createContext<WebSocketContextValue | null>(null)
+
+export function WebSocketProvider({ 
+  wsUrl, 
+  children 
+}: { 
+  wsUrl: string
+  children: React.ReactNode 
+}) {
   const [isConnected, setIsConnected] = useState(false)
-  const [lastMessage, setLastMessage] = useState<any>(null)
+  const [jobs, setJobs] = useState<Map<string, Job>>(new Map())
   const ws = useRef<WebSocket | null>(null)
 
   useEffect(() => {
-    ws.current = new WebSocket(url)
+    const connect = () => {
+      ws.current = new WebSocket(wsUrl)
 
-    ws.current.onopen = () => {
-      setIsConnected(true)
+      ws.current.onopen = () => {
+        setIsConnected(true)
+        console.log('WebSocket conectado')
+      }
+
+      ws.current.onclose = () => {
+        setIsConnected(false)
+        // Reconecta após 3 segundos
+        setTimeout(connect, 3000)
+      }
+
+      ws.current.onmessage = (event) => {
+        const data = JSON.parse(event.data)
+        
+        if (data.type === 'job_update') {
+          setJobs(prev => new Map(prev).set(data.jobId, {
+            jobId: data.jobId,
+            status: data.status,
+            progress: data.progress,
+            message: data.message,
+            outputPath: data.outputPath
+          }))
+        }
+      }
     }
 
-    ws.current.onclose = () => {
-      setIsConnected(false)
-    }
-
-    ws.current.onmessage = (event) => {
-      setLastMessage(JSON.parse(event.data))
-    }
+    connect()
 
     return () => {
       ws.current?.close()
     }
-  }, [url])
+  }, [wsUrl])
 
-  const send = (data: any) => {
+  const sendMessage = (message: any) => {
     if (ws.current && isConnected) {
-      ws.current.send(JSON.stringify(data))
+      ws.current.send(JSON.stringify(message))
     }
   }
 
-  return { isConnected, lastMessage, send }
+  return (
+    <WebSocketContext.Provider value={{ isConnected, jobs, sendMessage }}>
+      {children}
+    </WebSocketContext.Provider>
+  )
+}
+
+export function useWebSocketContext() {
+  const context = useContext(WebSocketContext)
+  if (!context) {
+    throw new Error('useWebSocketContext must be used within WebSocketProvider')
+  }
+  return context
 }
 ```
 
@@ -271,34 +334,24 @@ export function useFileUpload(endpoint: string) {
 }
 ```
 
-## Exemplo Completo
+## Exemplo Completo com WebSocketProvider
 
 ```typescript
-// routes/ifc-conversion.tsx
+// routes/model-generation.tsx
 import { FileUpload } from '../components/file-upload'
 import { ConversionProgress } from '../components/conversion-progress'
-import { useWebSocket } from '../hooks/useWebSocket'
-import { useState } from 'react'
+import { useWebSocketContext } from '../contexts/WebSocketContext'
+import { useState, useEffect } from 'react'
 
-export function IfcConversionPage() {
+export function ModelGenerationPage() {
   const [jobId, setJobId] = useState<string | null>(null)
-  const [progress, setProgress] = useState(0)
-  const [message, setMessage] = useState('')
+  const { isConnected, jobs } = useWebSocketContext()
 
-  const { isConnected, lastMessage, send } = useWebSocket(
-    'ws://localhost:3001/ws/conversion-progress'
-  )
-
-  // Atualiza progresso quando recebe mensagem
-  useEffect(() => {
-    if (lastMessage?.type === 'progress') {
-      setProgress(lastMessage.percentage)
-      setMessage(lastMessage.message)
-    }
-  }, [lastMessage])
+  // Obtém job atual do Map global
+  const currentJob = jobId ? jobs.get(jobId) : null
 
   const handleUpload = async (formData: FormData) => {
-    const response = await fetch('http://localhost:3001/api/models/generate-ifc', {
+    const response = await fetch('http://localhost:3000/models/generate-ifc', {
       method: 'POST',
       body: formData
     })
@@ -306,32 +359,35 @@ export function IfcConversionPage() {
     const data = await response.json()
     setJobId(data.jobId)
 
-    // Inscreve no WebSocket para progresso
-    send({ type: 'subscribe', jobId: data.jobId })
+    // WebSocket automaticamente recebe atualizações via Provider
   }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-3xl font-bold">Revit to IFC</h1>
+      <h1 className="text-3xl font-bold">Geração de IFC</h1>
 
       <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        {/* Indicador de status WebSocket */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">Status da Conexão:</span>
+          <div className="flex items-center space-x-2">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="text-sm">{isConnected ? '🟢 Conectado' : '🔴 Desconectado'}</span>
+          </div>
+        </div>
+
         <FileUpload
           onUpload={handleUpload}
-          accept=".rvt"
+          accept=".rvt,.pln"
         />
 
-        {jobId && (
+        {currentJob && (
           <ConversionProgress
-            progress={progress}
-            message={message}
-            status={progress === 100 ? 'completed' : 'processing'}
+            progress={currentJob.progress}
+            message={currentJob.message}
+            status={currentJob.status}
           />
         )}
-
-        <div className="flex items-center space-x-2 text-sm">
-          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-          <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
-        </div>
       </div>
     </div>
   )
@@ -356,12 +412,20 @@ npm run preview
 ## Variáveis de Ambiente
 
 ```bash
-# .env
-VITE_API_URL=http://localhost:3001
-VITE_WS_URL=ws://localhost:3001
+# .env.development
+VITE_API_URL=http://localhost:3000
+VITE_WS_URL=ws://localhost:3000
+
+# .env.production
+VITE_API_URL=https://seu-dominio.com
+VITE_WS_URL=wss://seu-dominio.com
 ```
 
 ```typescript
 // Uso no código
 const apiUrl = import.meta.env.VITE_API_URL
+const wsUrl = import.meta.env.VITE_WS_URL
+
+// Exemplo
+fetch(`${apiUrl}/models/generate-ifc`, { ... })
 ```

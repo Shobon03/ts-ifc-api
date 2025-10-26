@@ -76,11 +76,11 @@ export default function HomePage() {
         <div className="mt-16 grid grid-cols-2 gap-8 sm:grid-cols-4">
           <div className="flex flex-col items-center">
             <div className="mb-2 text-3xl font-bold text-blue-600 dark:text-blue-400">3</div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Formatos</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">Formatos BIM</div>
           </div>
           <div className="flex flex-col items-center">
-            <div className="mb-2 text-3xl font-bold text-blue-600 dark:text-blue-400">95%</div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Plugin Revit</div>
+            <div className="mb-2 text-3xl font-bold text-blue-600 dark:text-blue-400">2</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">Plugins Nativos</div>
           </div>
           <div className="flex flex-col items-center">
             <div className="mb-2 text-3xl font-bold text-blue-600 dark:text-blue-400">100MB</div>

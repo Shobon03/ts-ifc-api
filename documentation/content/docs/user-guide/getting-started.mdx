@@ -5,6 +5,7 @@ description: Acesse o sistema e faça sua primeira conversão
 
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Steps, Step } from 'fumadocs-ui/components/steps';
+import { Card, Cards } from 'fumadocs-ui/components/card';
 
 ## Acessando o Sistema
 
@@ -28,7 +29,7 @@ Use um navegador moderno atualizado:
 
 Digite o endereço fornecido pelo administrador do sistema:
 
-- **Desenvolvimento local**: `http://localhost:5173`
+- **Desenvolvimento local**: `http://localhost:3001`
 - **Produção**: URL fornecida pela equipe
 
 </Step>
@@ -38,9 +39,10 @@ Digite o endereço fornecido pelo administrador do sistema:
 ### Página Inicial
 
 Você verá a tela de boas-vindas com:
-- Banner explicativo sobre o sistema
+- Banner com efeito visual interativo (canvas animado)
 - Menu de navegação superior
-- Botões para acessar as funcionalidades
+- Cards destacando os recursos principais
+- Botão "Converter modelo para IFC"
 
 </Step>
 
@@ -50,61 +52,90 @@ Você verá a tela de boas-vindas com:
 
 ### Menu Principal
 
-O sistema possui as seguintes páginas:
+O sistema possui as seguintes páginas principais:
 
 ```typescript
 const navigation = {
   "Home": "Página inicial com visão geral",
-  "IFC Conversion": "Conversão Revit → IFC via Forge",
-  "Archicad Conversion": "Conversão Archicad → IFC",
-  "IFC to Revit": "Conversão IFC → Revit",
-  "Validate IFC": "Validação de arquivos IFC",
-  "Model Transformation": "Transformações avançadas",
-  "WebSocket Demo": "Demonstração de comunicação em tempo real"
+  "Sobre": "Informações sobre o projeto",
+  "Geração de IFC": "Conversão simples (Revit/Archicad → IFC)",
+  "Transformação de Modelos": "Conversões em cadeia (ex: Revit → IFC → Archicad)"
 }
 ```
 
-### Elementos Comuns
+### Elementos Comuns da Interface
 
 Todas as páginas de conversão compartilham elementos similares:
 
-1. **Área de Upload**
-   - Botão "Escolher arquivo" ou drag-and-drop
-   - Indicação do tipo de arquivo aceito
-   - Nome do arquivo selecionado
+1. **Indicadores de Status**
+   - 🟢 **WebSocket**: Conexão em tempo real
+   - 🟢/🔴 **Status dos Plugins**: Revit e Archicad
+   - 🌙/☀️ **Modo Escuro/Claro**: Alternância de tema
 
-2. **Botão de Conversão**
-   - Ativa após selecionar arquivo
+2. **Área de Upload**
+   - Drag-and-drop (arrastar e soltar)
+   - Botão "Escolher arquivo"
+   - Indicação do tipo de arquivo aceito
+   - Exibição do arquivo selecionado (nome e tamanho)
+
+3. **Botão de Conversão**
+   - Ativa após selecionar arquivo válido
    - Inicia o processamento
 
-3. **Barra de Progresso**
+4. **Barra de Progresso**
    - Aparece durante a conversão
-   - Mostra porcentagem e status
-   - Pode ser cancelada (se suportado)
+   - Mostra porcentagem (0-100%)
+   - Mensagens de status em tempo real
+   - Plugin em uso (Revit ou Archicad)
 
-4. **Indicador de Status WebSocket**
-   - 🟢 Verde: Conectado
-   - 🟡 Amarelo: Conectando
-   - 🔴 Vermelho: Desconectado
+5. **Indicador de Status WebSocket**
+   - 🟢 **Verde**: Conectado (tudo OK)
+   - 🟡 **Amarelo**: Reconectando (tentativa N/5)
+   - 🔴 **Vermelho**: Desconectado (verifique conexão)
 
 ## Sua Primeira Conversão
 
-Vamos fazer uma conversão simples de **Revit para IFC**:
+### Opção 1: Conversão Simples (Revit → IFC)
+
+Vamos fazer a conversão mais simples: transformar um arquivo Revit em IFC.
 
 <Steps>
 
 <Step>
 
-### Selecione o Arquivo
+### Navegue para Geração de IFC
 
-1. Clique em "IFC Conversion" no menu
-2. Clique no botão "Escolher arquivo" ou arraste o arquivo para a área
-3. Selecione um arquivo `.rvt` do seu computador
-4. O nome do arquivo aparecerá na tela
+1. No menu superior, clique em **"Geração de IFC"**
+2. Você verá a página de upload
 
 <Callout type="info">
-  Certifique-se de que o arquivo tem menos de 100MB e está no formato correto (.rvt)
+  Verifique o **status dos plugins** no topo da página. Para conversão Revit, você precisa que o indicador mostre "🟢 Revit: Conectado".
 </Callout>
+
+</Step>
+
+<Step>
+
+### Selecione o Arquivo
+
+**Método 1: Arrastar e Soltar**
+- Arraste o arquivo `.rvt` para a área indicada
+- Solte quando a área ficar destacada
+
+**Método 2: Clicar para Selecionar**
+- Clique no botão "Escolher arquivo" ou na área de upload
+- Navegue até o arquivo `.rvt`
+- Selecione e clique "Abrir"
+
+**Requisitos do arquivo:**
+- Formato: `.rvt` (Revit) ou `.pln` (Archicad)
+- Tamanho máximo: 100MB
+- Arquivo deve abrir normalmente no software original
+
+Após selecionar, você verá:
+```
+📄 meu-projeto.rvt (25.6 MB)
+```
 
 </Step>
 
@@ -112,37 +143,44 @@ Vamos fazer uma conversão simples de **Revit para IFC**:
 
 ### Inicie a Conversão
 
-1. Clique no botão "Converter" ou "Convert"
-2. A barra de progresso começará a aparecer
-3. Aguarde o processamento
+1. Clique no botão **"Converter para IFC"**
+2. A conversão inicia imediatamente
+3. Você NÃO pode fechar a página durante o processo
 
-**Você verá as seguintes etapas**:
-
-```typescript
-const conversionStages = {
-  "0-20%": "Uploading file to server...",
-  "20-40%": "Sending to Autodesk Forge...",
-  "40-80%": "Converting to IFC...",
-  "80-95%": "Downloading result...",
-  "95-100%": "Finalizing..."
-}
-```
+<Callout type="warn">
+  Mantenha a aba do navegador aberta. Se fechar, você perde o acompanhamento do progresso (mas a conversão continua no servidor).
+</Callout>
 
 </Step>
 
 <Step>
 
-### Aguarde o Resultado
+### Acompanhe o Progresso
 
-Durante o processo você pode:
-- ✅ Acompanhar o progresso em tempo real
-- ✅ Ver mensagens de status detalhadas
-- ✅ Cancelar se necessário (em algumas conversões)
+A barra de progresso mostrará as etapas em tempo real:
 
-**Não**:
-- ❌ Fechar o navegador (interrompe a conversão)
-- ❌ Mudar de página (perde o progresso)
-- ❌ Desligar o computador
+**Para arquivos Revit (.rvt):**
+```typescript
+0-20%  → "Enviando arquivo para o servidor..."
+20-40% → "Enviando para Autodesk Forge..."
+40-80% → "Convertendo para IFC (pode demorar alguns minutos)..."
+80-95% → "Baixando resultado..."
+95-100% → "Finalizando..."
+```
+
+**Para arquivos Archicad (.pln):**
+```typescript
+0-30%  → "Enviando arquivo para o servidor..."
+30-50% → "Processando no servidor Python..."
+50-70% → "Abrindo no Archicad..."
+70-90% → "Exportando IFC..."
+90-100% → "Preparando download..."
+```
+
+**Tempo estimado:**
+- Pequeno (< 10MB): 1-2 minutos
+- Médio (10-50MB): 3-5 minutos
+- Grande (50-100MB): 5-10 minutos
 
 </Step>
 
@@ -150,54 +188,118 @@ Durante o processo você pode:
 
 ### Baixe o Arquivo
 
-Quando a conversão atingir 100%:
-1. O arquivo `.ifc` será baixado automaticamente
-2. Você verá uma mensagem de sucesso
-3. O arquivo estará na pasta de Downloads do seu navegador
+Quando a conversão atingir **100%**:
+
+1. O arquivo `.ifc` será **baixado automaticamente** (verifique a pasta Downloads)
+2. Você verá uma mensagem de sucesso:
+   ```
+   ✅ Concluído!
+   📄 meu-projeto.ifc (18.2 MB)
+   ```
+3. Um botão **"Fazer download"** aparecerá (caso precise baixar novamente)
 
 </Step>
 
 </Steps>
 
-## Verificando o Resultado
+### Opção 2: Conversão em Cadeia (Revit → Archicad)
 
-Após baixar o arquivo IFC:
+Agora vamos fazer uma conversão mais avançada: transformar um arquivo Revit diretamente em Archicad.
 
 <Steps>
 
 <Step>
 
-### Localize o Arquivo
+### Navegue para Transformação de Modelos
 
-1. Vá para a pasta de Downloads
-2. Procure por um arquivo com extensão `.ifc`
-3. O nome geralmente será baseado no arquivo original
-
-</Step>
-
-<Step>
-
-### Valide o IFC (Opcional mas Recomendado)
-
-1. Volte ao sistema
-2. Vá para "Validate IFC"
-3. Faça upload do arquivo `.ifc` que acabou de baixar
-4. Veja o relatório de validação
+1. No menu superior, clique em **"Transformação de Modelos"**
+2. Você verá uma interface mais avançada
 
 <Callout type="success">
-  Se o validador mostrar "✅ Valid IFC", seu arquivo está pronto para uso!
+  Esta página permite conversões automáticas em cadeia! Por exemplo: Revit → IFC → Archicad acontece automaticamente.
 </Callout>
 
 </Step>
 
 <Step>
 
-### Teste no Software de Destino
+### Selecione o Arquivo de Origem
 
-1. Abra o software BIM de destino (ex: outro visualizador IFC)
-2. Importe ou abra o arquivo `.ifc`
-3. Verifique se os elementos aparecem corretamente
-4. Confira se propriedades importantes foram preservadas
+- Faça upload do arquivo `.rvt` (mesmo processo da Opção 1)
+- O sistema detecta automaticamente o formato
+
+</Step>
+
+<Step>
+
+### Escolha o Formato de Destino
+
+Após o upload, você verá checkboxes:
+
+**Se você enviou `.rvt`:**
+- ☑️ **Archicad (.pln)** - Converte para Archicad
+
+**Se você enviou `.pln`:**
+- ☑️ **Revit (.rvt)** - Converte para Revit
+
+**Se você enviou `.ifc`:**
+- ☑️ **Revit (.rvt)**
+- ☑️ **Archicad (.pln)**
+- Pode selecionar ambos!
+
+Marque as opções desejadas.
+
+</Step>
+
+<Step>
+
+### Visualize o Fluxo
+
+O sistema mostra uma seta indicando o fluxo:
+
+**Exemplo 1:**
+```
+Revit → IFC → Archicad
+```
+
+**Exemplo 2:**
+```
+IFC → Revit
+IFC → Archicad
+```
+
+</Step>
+
+<Step>
+
+### Inicie a Transformação
+
+1. Clique em **"Converter Modelo"**
+2. Você verá **múltiplas barras de progresso**:
+   - Uma para cada etapa da conversão
+   - Executam em sequência ou paralelo (depende do caso)
+
+**Conversão em Sequência** (Revit → IFC → Archicad):
+```
+[████████████] 100% Revit → IFC (concluído)
+[████░░░░░░░░]  40% IFC → Archicad (processando...)
+```
+
+**Conversão em Paralelo** (IFC → Revit e Archicad):
+```
+[████████░░░░]  75% IFC → Revit
+[██████░░░░░░]  60% IFC → Archicad
+```
+
+</Step>
+
+<Step>
+
+### Baixe os Resultados
+
+- Cada conversão completada oferece download independente
+- Arquivos baixam automaticamente quando prontos
+- Você pode iniciar nova conversão clicando "Nova Conversão"
 
 </Step>
 
@@ -210,15 +312,17 @@ Após baixar o arquivo IFC:
 Antes de fazer upload:
 
 ✅ **Faça**:
-- Salve uma cópia do arquivo original
+- Salve uma cópia do arquivo original (backup)
 - Verifique se o arquivo abre normalmente no software nativo
 - Remova elementos desnecessários para reduzir tamanho
 - Use a última versão salva (sem erros)
+- Feche o arquivo no software antes de fazer upload
 
 ❌ **Evite**:
 - Arquivos corrompidos ou com erros
 - Modelos extremamente complexos na primeira vez
 - Arquivos de versões muito antigas dos softwares
+- Arquivos que nunca foram testados antes
 
 ### Durante a Conversão
 
@@ -227,113 +331,128 @@ Antes de fazer upload:
 - Aguarde pacientemente (pode demorar alguns minutos)
 - Observe as mensagens de status
 - Anote qualquer erro que aparecer
+- Verifique se o indicador WebSocket está verde (🟢)
 
 ❌ **Evite**:
 - Clicar múltiplas vezes no botão de conversão
 - Fechar o navegador durante o processo
 - Fazer upload de outro arquivo enquanto um está processando
+- Atualizar a página (F5) durante a conversão
+- Desligar o computador
 
 ### Após a Conversão
 
 ✅ **Faça**:
-- Valide o IFC gerado
-- Teste em pelo menos um software compatível
+- Verifique a pasta de Downloads do navegador
+- Teste o arquivo convertido no software de destino
 - Guarde uma cópia de backup
 - Documente eventuais problemas encontrados
+- Relate erros para a equipe
 
 ❌ **Evite**:
 - Deletar o arquivo original imediatamente
-- Compartilhar IFC sem validar primeiro
+- Compartilhar o arquivo convertido sem testar primeiro
 - Assumir que tudo foi convertido perfeitamente sem verificar
+- Confiar apenas no arquivo convertido (mantenha o original)
 
-## Entendendo o Progresso
+## Entendendo a Interface
 
-### Indicadores Visuais
+### Indicadores de Status
 
-O sistema fornece múltiplos indicadores:
+#### WebSocket (Canto Superior)
 
-```typescript
-// Tipos de feedback durante conversão
-interface ProgressIndicators {
-  progressBar: {
-    type: "percentage",
-    range: "0-100%",
-    color: "blue → green (quando completo)"
-  },
-  statusMessages: {
-    type: "text",
-    examples: [
-      "Uploading file...",
-      "Processing conversion...",
-      "Download ready!"
-    ]
-  },
-  websocketStatus: {
-    type: "icon",
-    states: {
-      connected: "🟢 Green circle",
-      connecting: "🟡 Yellow circle",
-      disconnected: "🔴 Red circle"
-    }
-  }
-}
-```
+| Indicador | Significado | Ação |
+|-----------|-------------|------|
+| 🟢 Conectado | Conexão ativa, tudo funcionando | Continue normalmente |
+| 🟡 Reconectando (N/5) | Conexão perdida, tentando reconectar | Aguarde alguns segundos |
+| 🔴 Desconectado | Sem conexão com servidor | Verifique internet/backend |
 
-### Mensagens Comuns
+#### Status dos Plugins
 
-| Mensagem | Significado | Ação |
-|----------|-------------|------|
-| "File uploaded successfully" | Upload completo | Aguarde conversão |
-| "Converting model..." | Processando | Aguarde (normal demorar) |
-| "Conversion completed!" | Sucesso! | Baixe o arquivo |
-| "Error: Invalid file format" | Arquivo errado | Use formato correto |
-| "Error: File too large" | Arquivo muito grande | Reduza tamanho |
-| "WebSocket connected" | Conexão ativa | Tudo OK |
-| "WebSocket disconnected" | Sem conexão | Verifique internet |
+| Indicador | Significado | O que fazer |
+|-----------|-------------|-------------|
+| 🟢 Revit: Conectado | Plugin Revit está ativo | Pode fazer conversões Revit |
+| 🔴 Revit: Desconectado | Plugin não disponível | Conversões Revit não funcionarão |
+| 🟢 Archicad: Conectado | Plugin Archicad está ativo | Pode fazer conversões Archicad |
+| 🔴 Archicad: Desconectado | Plugin não disponível | Conversões Archicad não funcionarão |
+
+<Callout type="info">
+  Os plugins rodam no servidor, não no seu computador. Se um plugin estiver desconectado, contate o administrador do sistema.
+</Callout>
+
+### Mensagens de Status Comuns
+
+| Mensagem | Significado | Normal? |
+|----------|-------------|---------|
+| "Enviando arquivo..." | Upload em andamento | ✅ Sim |
+| "Convertendo para IFC..." | Processamento ativo | ✅ Sim (pode demorar) |
+| "Conversão concluída!" | Sucesso! | ✅ Sim |
+| "Erro: Formato de arquivo inválido" | Arquivo errado | ❌ Use .rvt, .pln ou .ifc |
+| "Erro: Arquivo muito grande" | Excede 100MB | ❌ Reduza o tamanho |
+| "Erro: WebSocket desconectado" | Sem conexão | ❌ Verifique internet |
+| "Plugin não conectado" | Serviço indisponível | ❌ Contate administrador |
 
 ## Resolução Rápida de Problemas
 
 ### Upload Falha
 
-**Possíveis causas**:
+**Sintomas:** Arquivo não carrega, mensagem de erro ao selecionar
+
+**Possíveis causas:**
 1. Arquivo muito grande (> 100MB)
-2. Formato incorreto
-3. Conexão lenta
+2. Formato incorreto (não é .rvt, .pln ou .ifc)
+3. Conexão lenta ou instável
 4. Arquivo corrompido
 
-**Soluções**:
-- Verifique o tamanho do arquivo
-- Confirme a extensão (.rvt, .pln, .ifc)
+**Soluções:**
+- Verifique o tamanho: clique com botão direito → Propriedades
+- Confirme a extensão do arquivo
 - Tente novamente com internet melhor
-- Abra o arquivo no software nativo primeiro
+- Abra o arquivo no software nativo para verificar se está OK
 
-### Conversão Trava
+### Conversão Trava em X%
 
-**Possíveis causas**:
-1. Arquivo muito complexo
+**Sintomas:** Progresso para em uma porcentagem e não avança
+
+**Possíveis causas:**
+1. Arquivo muito complexo (processamento demorado)
 2. Servidor ocupado
-3. Timeout de rede
+3. Plugin travou
 4. Problema no arquivo
 
-**Soluções**:
+**Soluções:**
 - Aguarde até 10 minutos (arquivos grandes demoram)
 - Recarregue a página (F5) e tente novamente
+- Verifique se o WebSocket está conectado (🟢)
 - Simplifique o modelo se possível
 - Entre em contato com suporte se persistir
 
 ### Download Não Inicia
 
-**Possíveis causas**:
-1. Bloqueio do navegador
+**Sintomas:** 100% completo mas nenhum arquivo baixa
+
+**Possíveis causas:**
+1. Bloqueio do navegador (pop-ups/downloads)
 2. Pasta de downloads cheia
-3. Erro na conversão
+3. Erro na conversão (apesar dos 100%)
 4. Permissões de arquivo
 
-**Soluções**:
+**Soluções:**
 - Verifique configurações de download do navegador
 - Libere espaço em disco
-- Veja se há mensagem de erro
+- Veja se há mensagem de erro abaixo da barra
 - Tente em outro navegador
+- Clique no botão "Fazer download" manualmente
+
+### WebSocket Desconectado (🔴)
+
+**Sintomas:** Indicador vermelho, progresso não atualiza
+
+**Soluções:**
+1. Recarregue a página (F5)
+2. Verifique sua conexão com internet
+3. Verifique se o backend está rodando: abra `http://localhost:3000/health`
+4. Aguarde reconexão automática (até 5 tentativas)
 
 ## Próximos Passos
 
@@ -342,13 +461,8 @@ Agora que você fez sua primeira conversão:
 <Cards>
   <Card
     title="Conversão de Arquivos"
-    description="Explore todos os tipos de conversão disponíveis"
+    description="Explore todos os tipos de conversão disponíveis em detalhes"
     href="/docs/user-guide/file-conversion"
-  />
-  <Card
-    title="Validação de IFC"
-    description="Aprenda a verificar a qualidade dos arquivos"
-    href="/docs/user-guide/validation"
   />
   <Card
     title="Solução de Problemas"
@@ -359,4 +473,4 @@ Agora que você fez sua primeira conversão:
 
 ---
 
-**Dica**: Pratique com arquivos pequenos primeiro para se familiarizar com o sistema antes de processar projetos grandes e importantes!
+**Dica Final**: Pratique com arquivos pequenos primeiro (< 10MB) para se familiarizar com o sistema antes de processar projetos grandes e importantes!

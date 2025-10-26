@@ -1,5 +1,6 @@
 import { remarkCodeHike, recmaCodeHike, CodeHikeConfig } from "codehike/mdx"
 import { defineDocs, defineConfig } from "fumadocs-mdx/config"
+import rehypeMermaid from "rehype-mermaid"
 
 export const { docs, meta } = defineDocs({
   dir: "content/docs",
@@ -15,5 +16,6 @@ export default defineConfig({
   mdxOptions: {
     remarkPlugins: (v) => [[remarkCodeHike, chConfig], ...v],
     recmaPlugins: [[recmaCodeHike, chConfig]],
+    rehypePlugins: [rehypeMermaid],
   },
 })

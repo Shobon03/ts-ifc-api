@@ -22,8 +22,8 @@ import { source } from '@/lib/source';
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
-    <DocsLayout 
-      tree={source.pageTree} 
+    <DocsLayout
+      tree={source.pageTree}
       {...baseOptions}
       i18n={false}
       sidebar={{
@@ -33,6 +33,17 @@ export default function Layout({ children }: { children: ReactNode }) {
       nav={{
         ...baseOptions.nav,
         transparentMode: 'top',
+      }}
+      // Traduções para português
+      translations={{
+        search: 'Pesquisar',
+        searchNoResult: 'Nenhum resultado encontrado',
+        toc: 'Nesta página',
+        tocNoHeadings: 'Sem títulos',
+        lastUpdate: 'Última atualização',
+        chooseTheme: 'Escolher tema',
+        nextPage: 'Próxima',
+        previousPage: 'Anterior',
       }}
     >
       {children}

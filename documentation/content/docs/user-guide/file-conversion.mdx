@@ -7,19 +7,40 @@ import { Callout } from 'fumadocs-ui/components/callout';
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 import { Steps, Step } from 'fumadocs-ui/components/steps';
 
-## Tipos de Conversão
+## Páginas de Conversão
 
-O sistema suporta três principais tipos de conversão:
+O sistema oferece duas páginas principais para conversão:
 
-<Tabs items={['Revit → IFC', 'Archicad → IFC', 'IFC → Revit']}>
+### 🔄 **Geração de IFC** (`/model-generation`)
+Conversão simples e direta:
+- Upload de arquivo `.rvt` (Revit) ou `.pln` (Archicad)
+- Conversão para `.ifc`
+- Uma única etapa de conversão
+- Ideal para: exportar modelos para formato universal
+
+### 🔀 **Transformação de Modelos** (`/model-transformation`)
+Conversões em cadeia automáticas:
+- Upload de `.rvt`, `.pln` ou `.ifc`
+- Converte automaticamente entre formatos
+- Múltiplas etapas executadas em sequência
+- Ideal para: converter Revit ↔ Archicad via IFC intermediário
+
+---
+
+## Tipos de Conversão Suportados
+
+<Tabs items={['Revit → IFC', 'Archicad → IFC', 'IFC → Revit', 'Conversões em Cadeia']}>
   <Tab value="Revit → IFC">
-    Usa Autodesk Forge (nuvem) para processar arquivos
+    Usa Autodesk Forge/APS (nuvem) para processar arquivos
   </Tab>
   <Tab value="Archicad → IFC">
-    Usa plugin local do Archicad no servidor
+    Usa plugin Archicad local no servidor (via Python bridge)
   </Tab>
   <Tab value="IFC → Revit">
-    Usa plugin local do Revit no servidor
+    Usa plugin Revit local no servidor (via WebSocket)
+  </Tab>
+  <Tab value="Conversões em Cadeia">
+    Combina múltiplas conversões automaticamente (ex: Revit → IFC → Archicad)
   </Tab>
 </Tabs>
 
@@ -53,8 +74,9 @@ const revitToIfcFlow = {
 
 #### Acesse a Página
 
-1. Clique em **"IFC Conversion"** no menu principal
+1. Clique em **"Geração de IFC"** no menu principal
 2. Você verá a interface de conversão com área de upload
+3. Verifique se o status mostra: 🟢 **WebSocket: Conectado**
 
 </Step>
 
@@ -99,14 +121,18 @@ O sistema mostra progresso detalhado:
 | Download | 80-95% | Baixando resultado | 10-30s |
 | Finalização | 95-100% | Preparando arquivo | 5-10s |
 
-**Mensagens comuns**:
+**Mensagens comuns** (traduzidas para português):
 ```typescript
-"Uploading file to server..."
-"Sending to Autodesk Forge..."
-"Converting to IFC (this may take a few minutes)..."
-"Downloading converted file..."
-"Conversion completed! Downloading..."
+"Enviando arquivo para o servidor..."
+"Enviando para Autodesk Forge..."
+"Convertendo para IFC (pode demorar alguns minutos)..."
+"Baixando arquivo convertido..."
+"Conversão concluída!"
 ```
+
+<Callout type="success">
+  O sistema usa **internacionalização (i18n)** e traduz automaticamente as mensagens do backend do inglês para português, proporcionando melhor experiência para usuários brasileiros.
+</Callout>
 
 </Step>
 
@@ -204,8 +230,10 @@ const archicadToIfcFlow = {
 
 #### Acesse a Página
 
-1. Clique em **"Archicad Conversion"** no menu
-2. Verifique se o indicador de status mostra "🟢 Connected"
+1. Clique em **"Geração de IFC"** no menu
+2. Verifique se o indicador de status dos plugins mostra:
+   - 🟢 **Archicad: Conectado** (plugin disponível)
+3. Se mostrar 🔴 **Desconectado**, conversões Archicad não funcionarão
 
 </Step>
 
@@ -259,18 +287,26 @@ const archicadToIfcFlow = {
 
 ### Limitações Atuais
 
-<Callout type="warn" title="Plugin em Desenvolvimento (65% completo)">
+<Callout type="warn" title="Plugin em Desenvolvimento (~65% completo)">
   O plugin Archicad ainda não possui:
-  - ❌ Comunicação WebSocket (usa HTTP polling)
-  - ❌ Feedback detalhado de progresso
+  - ❌ Comunicação WebSocket em tempo real (usa HTTP)
+  - ❌ Feedback detalhado de progresso em tempo real
   - ❌ Configurações customizadas de exportação
   - ❌ Tratamento avançado de erros
+  - ❌ Importação IFC → PLN (apenas exportação)
 
   Funcionalidades disponíveis:
-  - ✅ Conversão básica .pln → .ifc
-  - ✅ Preservação de geometria e propriedades
+  - ✅ Conversão básica .pln → .ifc via API Archicad
+  - ✅ Preservação de geometria e propriedades básicas
   - ✅ Exportação compatível com IFC 2x3
+  - ✅ Integração via Python bridge
 </Callout>
+
+**Roadmap do Plugin Archicad:**
+- 🔲 Implementar WebSocket server (como o plugin Revit)
+- 🔲 Progresso em tempo real
+- 🔲 Importação IFC → PLN
+- 🔲 Configurações avançadas de exportação
 
 ---
 
@@ -323,8 +359,9 @@ Requer:
 
 #### Acesse a Página
 
-1. Vá para **"IFC to Revit"** ou **"Model Transformation"**
-2. Verifique status WebSocket: **🟢 Connected**
+1. Vá para **"Transformação de Modelos"** (`/model-transformation`)
+2. Verifique status WebSocket: **🟢 Conectado**
+3. Verifique status do plugin: 🟢 **Revit: Conectado**
 
 </Step>
 
