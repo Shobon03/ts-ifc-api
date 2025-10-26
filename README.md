@@ -1,41 +1,165 @@
 # ts-ifc-api
 
-<p style="text-align: center;">
-<strong>BIM Interoperability API, written in Typescript</strong>
+<p align="center">
+<strong>BIM Interoperability API for Revit, Archicad and IFC</strong>
 </p>
 
-## Goals
+<p align="center">
+  <a href="#-features">Features</a> •
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-development">Development</a> •
+  <a href="#-production">Production</a> •
+  <a href="#-documentation">Documentation</a>
+</p>
 
-This project aims to add a layer of interoperability for BIM software, especially Revit and Archicad, by having an API, an interface and documentation.
+---
 
-## Executing locally
+## 🎯 Goals
 
-Clone this project:
+This project provides a complete **BIM interoperability layer** for architectural software, enabling seamless conversion between:
+- **Revit** (.rvt) ↔ IFC
+- **Archicad** (.pln) ↔ IFC
+- **Revit** ↔ **Archicad** (via IFC)
+
+### Key Components
+- **REST API** (Node.js + TypeScript)
+- **WebSocket Bridge** (Python + Flask)
+- **Desktop Plugins** (Revit C# + Archicad C#)
+- **Web Interface** (React + TypeScript)
+- **Documentation** (VitePress)
+
+---
+
+## ✨ Features
+
+- ✅ **Real-time conversion progress** via WebSocket
+- ✅ **Multi-format support**: RVT, PLN, IFC
+- ✅ **Plugin status monitoring**
+- ✅ **Job management** with automatic cleanup
+- ✅ **File download** after conversion
+- ✅ **RESTful API** with Swagger documentation
+- ✅ **Cross-platform** (Windows, Linux, macOS)
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- **Node.js** >= 18.0.0
+- **pnpm** >= 8.0.0
+- **Python** >= 3.8
+
+### Installation
+
+**Windows:**
 ```bash
-git clone https://github.com/Shobon03/ts-ifc-api
-cd ts-ifc-api/
+git clone https://github.com/Shobon03/ts-ifc-api.git
+cd ts-ifc-api
+scripts\setup.bat
 ```
 
-Install dependencies:
+**Linux/Mac:**
 ```bash
-npm i
+git clone https://github.com/Shobon03/ts-ifc-api.git
+cd ts-ifc-api
+chmod +x scripts/*.sh
+./scripts/setup.sh
 ```
 
-Copy `.env.example` to `.env`:
+**Or manually:**
 ```bash
-cd backend && cp .env.example .env && cd ..
+pnpm install
+cd backend/python
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-Execute the application:
+---
+
+## 💻 Development
+
+Start all services in development mode with hot-reload:
+
 ```bash
-npm run dev
+pnpm dev
 ```
 
-Ports after initialization:
+Or start services individually:
 
-- http://localhost:3000 -> API
-- http://localhost:3001 -> Frontend
-- http://localhost:3002 -> Documentation
+```bash
+pnpm dev:backend        # Node.js API (port 3000)
+pnpm dev:python         # Python bridge (port 5000)
+pnpm dev:frontend       # React app (port 3001)
+pnpm dev:documentation  # VitePress docs (port 5173)
+```
+
+### Ports After Initialization
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| **Backend API** | http://localhost:3000 | Node.js REST API + WebSocket |
+| **Python Bridge** | http://localhost:5000 | Plugin communication bridge |
+| **Frontend** | http://localhost:3001 | React web interface |
+| **Documentation** | http://localhost:5173 | VitePress documentation |
+| **Swagger API Docs** | http://localhost:3000/docs | Interactive API reference |
+
+---
+
+## 🏭 Production
+
+### Build
+
+**Windows:**
+```bash
+scripts\build.bat
+```
+
+**Linux/Mac:**
+```bash
+./scripts/build.sh
+```
+
+**Or with pnpm:**
+```bash
+pnpm build
+```
+
+### Run
+
+**Windows:**
+```bash
+scripts\start.bat
+```
+
+**Linux/Mac:**
+```bash
+./scripts/start.sh
+```
+
+**Or with pnpm:**
+```bash
+pnpm start
+```
+
+### Production with PM2
+
+```bash
+# Install PM2
+npm install -g pm2
+
+# Build
+pnpm build
+
+# Start with PM2
+pm2 start ecosystem.config.js
+
+# Configure to start on boot
+pm2 startup
+pm2 save
+```
+
+For detailed build and deployment instructions, see **[BUILD.md](BUILD.md)**.
 
 ## License
 

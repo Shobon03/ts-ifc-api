@@ -21,9 +21,8 @@ import './assets/css/index.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
-
-import { routeTree } from './routeTree.gen';
 import { WebSocketProvider } from './lib/websocket-context';
+import { routeTree } from './routeTree.gen';
 
 const router = createRouter({
   routeTree,
@@ -37,13 +36,18 @@ declare module '@tanstack/react-router' {
 
 const queryClient = new QueryClient();
 
-createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error('Root element not found');
+}
+
+createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-    <WebSocketProvider wsUrl="ws://localhost:3000/models/ws/conversion">
-      <ReactQueryDevtools initialIsOpen={false} />
-      <RouterProvider router={router} />
-    </WebSocketProvider>
+      <WebSocketProvider wsUrl='ws://localhost:3000/models/ws/conversion'>
+        <ReactQueryDevtools initialIsOpen={false} />
+        <RouterProvider router={router} />
+      </WebSocketProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

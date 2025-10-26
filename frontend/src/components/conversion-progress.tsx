@@ -15,7 +15,6 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { useEffect } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -23,7 +22,12 @@ import {
   Loader2,
   XCircle,
 } from 'lucide-react';
-import { useConversionJob, useWebSocketContext } from '../lib/websocket-context';
+import { useEffect } from 'react';
+import { config } from '../lib/config';
+import {
+  useConversionJob,
+  useWebSocketContext,
+} from '../lib/websocket-context';
 import { JobStatus } from '../lib/websocket-types';
 
 interface ConversionProgressProps {
@@ -194,37 +198,38 @@ export function ConversionProgress({
                   Arquivo:{' '}
                   <span className='font-medium'>{job.result.fileName}</span>
                 </p>
-                {job.result.fileSize !== undefined && job.result.fileSize !== null && !isNaN(job.result.fileSize) && (
-                  <p>
-                    Tamanho:{' '}
-                    <span className='font-medium'>
-                      {formatFileSize(job.result.fileSize)}
-                    </span>
-                  </p>
-                )}
+                {job.result.fileSize !== undefined &&
+                  job.result.fileSize !== null &&
+                  !Number.isNaN(job.result.fileSize) && (
+                    <p>
+                      Tamanho:{' '}
+                      <span className='font-medium'>
+                        {formatFileSize(job.result.fileSize)}
+                      </span>
+                    </p>
+                  )}
               </div>
               <div className='mt-4'>
                 <button
                   type='button'
                   onClick={() => {
-                    const downloadUrl = job.result!.downloadUrl;
+                    const downloadUrl = job.result?.downloadUrl;
+
+                    // Build full URL pointing to backend
                     const fullUrl = downloadUrl.startsWith('http')
                       ? downloadUrl
-                      : `${window.location.origin}${downloadUrl}`;
+                      : `${config.backendUrl}${downloadUrl}`;
+
+                    console.log('[Download] Downloading from:', fullUrl);
 
                     if (onDownload) {
-                      onDownload(fullUrl, job.result!.fileName);
+                      onDownload(fullUrl, job.result?.fileName);
                     } else {
-                      // Create a temporary link element to trigger download
-                      const link = document.createElement('a');
-                      link.href = fullUrl;
-                      link.download = job.result!.fileName || 'download';
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
+                      // Open download in new window to trigger browser download
+                      window.open(fullUrl, '_blank');
                     }
                   }}
-                  className='inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2'
+                  className='inline-flex cursor-pointer items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2'
                 >
                   <Download className='h-4 w-4' />
                   Fazer download
@@ -273,7 +278,7 @@ export function ConversionProgress({
 }
 
 function formatFileSize(bytes: number | undefined | null): string {
-  if (bytes === undefined || bytes === null || isNaN(bytes)) {
+  if (bytes === undefined || bytes === null || Number.isNaN(bytes)) {
     return 'Tamanho desconhecido';
   }
 
@@ -283,5 +288,5 @@ function formatFileSize(bytes: number | undefined | null): string {
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
 
-  return `${Math.round((bytes / Math.pow(k, i)) * 100) / 100} ${sizes[i]}`;
+  return `${Math.round((bytes / k ** i) * 100) / 100} ${sizes[i]}`;
 }

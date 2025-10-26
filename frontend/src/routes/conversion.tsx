@@ -17,14 +17,8 @@
 
 import { createFileRoute } from '@tanstack/react-router';
 
-
 import { FileConversionWithWebSocket } from '../components/file-conversion-with-websocket';
-import { WebSocketProvider } from '../lib/websocket-context';
 
 export const Route = createFileRoute('/conversion')({
-  component: () => (
-    <WebSocketProvider wsUrl="ws://localhost:3000/models/ws/conversion">
-      <FileConversionWithWebSocket />
-    </WebSocketProvider>
-  ),
+  component: () => <FileConversionWithWebSocket />,
 });

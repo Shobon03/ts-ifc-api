@@ -15,6 +15,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { join } from 'node:path';
 import fastifyCors from '@fastify/cors';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyRateLimit from '@fastify/rate-limit';
@@ -28,13 +29,12 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from 'fastify-type-provider-zod';
-import { join } from 'path';
 import { healthRoute } from './routes/health.route';
 import { modelRoutes } from './routes/model.route';
 import { MAX_FILE_SIZE } from './utils/max-filesize';
+import { archicadPlugin } from './ws/archicad-plugin';
 import { pythonBridge } from './ws/python-bridge';
 import { revitPlugin } from './ws/revit-plugin';
-import { archicadPlugin } from './ws/archicad-plugin';
 import { wsManager } from './ws/websocket';
 
 /**

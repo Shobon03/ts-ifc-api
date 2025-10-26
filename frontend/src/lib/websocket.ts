@@ -107,12 +107,21 @@ export function useWebSocket({
     onErrorRef.current = onError;
     reconnectAttemptsRef.current = reconnectAttempts;
     reconnectIntervalRef.current = reconnectInterval;
-  }, [onMessage, onOpen, onClose, onError, reconnectAttempts, reconnectInterval]);
+  }, [
+    onMessage,
+    onOpen,
+    onClose,
+    onError,
+    reconnectAttempts,
+    reconnectInterval,
+  ]);
 
   const connect = useCallback(() => {
     // Don't connect if component is unmounted, already connecting, or socket already open
     if (!isMountedRef.current || isConnectingRef.current) {
-      console.log('[WebSocket] Skipping connect - already connecting or unmounted');
+      console.log(
+        '[WebSocket] Skipping connect - already connecting or unmounted',
+      );
       return;
     }
 
@@ -121,9 +130,13 @@ export function useWebSocket({
       socketRef.current = sharedSocket;
     }
 
-    if (socketRef.current?.readyState === WebSocket.OPEN ||
-        socketRef.current?.readyState === WebSocket.CONNECTING) {
-      console.log('[WebSocket] Skipping connect - socket already open/connecting');
+    if (
+      socketRef.current?.readyState === WebSocket.OPEN ||
+      socketRef.current?.readyState === WebSocket.CONNECTING
+    ) {
+      console.log(
+        '[WebSocket] Skipping connect - socket already open/connecting',
+      );
       return;
     }
 
@@ -149,10 +162,10 @@ export function useWebSocket({
       }));
 
       console.log(`[WebSocket] Connecting to ${urlRef.current}...`);
-  const socket = new WebSocket(urlRef.current);
-  socketRef.current = socket;
-  // store globally so other mounts reuse the same socket
-  sharedSocket = socket;
+      const socket = new WebSocket(urlRef.current);
+      socketRef.current = socket;
+      // store globally so other mounts reuse the same socket
+      sharedSocket = socket;
 
       socket.onopen = (event) => {
         isConnectingRef.current = false;
@@ -367,7 +380,7 @@ export function useWebSocket({
       // The connection will be closed explicitly via disconnect() or when leaving the page.
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty deps - only run once on mount
+  }, [connect, reconnectAttempts]); // Empty deps - only run once on mount
 
   return {
     ...state,

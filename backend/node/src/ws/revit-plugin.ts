@@ -45,7 +45,7 @@ interface RevitCommand {
   jobId: string;
   ifcPath?: string;
   outputPath?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -54,7 +54,6 @@ interface RevitCommand {
 class RevitPluginManager {
   private revitSocket: WebSocket | null = null;
   private connected = false;
-  private pluginVersion: string | null = null;
 
   /**
    * Registers a Revit plugin WebSocket connection
@@ -126,7 +125,9 @@ class RevitPluginManager {
           break;
 
         default:
-          console.warn(`Unknown message type from Revit: ${message.type || message.command}`);
+          console.warn(
+            `Unknown message type from Revit: ${message.type || message.command}`,
+          );
       }
     } catch (error) {
       console.error('Failed to parse Revit message:', error);
@@ -239,7 +240,9 @@ class RevitPluginManager {
 
     try {
       this.revitSocket.send(JSON.stringify(command));
-      console.log(`Sent command to Revit: ${command.command} (Job: ${command.jobId})`);
+      console.log(
+        `Sent command to Revit: ${command.command} (Job: ${command.jobId})`,
+      );
       return true;
     } catch (error) {
       console.error('Failed to send command to Revit:', error);

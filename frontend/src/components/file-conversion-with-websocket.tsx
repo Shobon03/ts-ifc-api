@@ -90,7 +90,9 @@ export function FileConversionWithWebSocket() {
 
   const canUpload = file && isValidFile(file) && isConnected && !isUploading;
 
-  const handleConversionCompleted = (result: any) => {
+  const handleConversionCompleted = (
+    result: { downloadUrl?: string; fileName?: string } | null,
+  ) => {
     if (result && !downloadStarted) {
       setDownloadStarted(true);
       console.log('IFC Conversion completed:', result);

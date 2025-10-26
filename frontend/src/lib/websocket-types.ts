@@ -126,7 +126,7 @@ export interface ProgressUpdateMessage extends JobMessage {
   details?: {
     plugin?: PluginType;
     currentStep?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   timestamp: string;
 }
@@ -243,6 +243,6 @@ export interface ConversionJob {
   details?: {
     plugin?: PluginType;
     currentStep?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }

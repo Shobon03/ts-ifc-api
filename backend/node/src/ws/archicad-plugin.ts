@@ -45,7 +45,7 @@ interface ArchicadCommand {
   jobId: string;
   plnPath?: string;
   outputPath?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -54,7 +54,6 @@ interface ArchicadCommand {
 class ArchicadPluginManager {
   private archicadSocket: WebSocket | null = null;
   private connected = false;
-  private pluginVersion: string | null = null;
 
   /**
    * Registers an Archicad plugin WebSocket connection
@@ -130,7 +129,9 @@ class ArchicadPluginManager {
           break;
 
         default:
-          console.warn(`Unknown message type from Archicad: ${message.type || message.command}`);
+          console.warn(
+            `Unknown message type from Archicad: ${message.type || message.command}`,
+          );
       }
     } catch (error) {
       console.error('Failed to parse Archicad message:', error);
@@ -244,7 +245,9 @@ class ArchicadPluginManager {
 
     try {
       this.archicadSocket.send(JSON.stringify(command));
-      console.log(`Sent command to Archicad: ${command.command} (Job: ${command.jobId})`);
+      console.log(
+        `Sent command to Archicad: ${command.command} (Job: ${command.jobId})`,
+      );
       return true;
     } catch (error) {
       console.error('Failed to send command to Archicad:', error);
@@ -309,7 +312,9 @@ class ArchicadPluginManager {
       cancelled: ConversionStatus.CANCELLED,
     };
 
-    return statusMap[archicadStatus.toLowerCase()] || ConversionStatus.PROCESSING;
+    return (
+      statusMap[archicadStatus.toLowerCase()] || ConversionStatus.PROCESSING
+    );
   }
 }
 

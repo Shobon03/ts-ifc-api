@@ -15,9 +15,8 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import type { WebSocket } from 'ws';
 import { existsSync, statSync } from 'node:fs';
-import path from 'node:path';
+import type { WebSocket } from 'ws';
 import { ConversionStatus, wsManager } from './websocket';
 
 /**
@@ -29,10 +28,12 @@ interface PythonMessage {
   progress?: number;
   status?: string;
   message?: string;
-  details?: any;
+  details?: Record<string, unknown>;
   error?: string;
   service?: string;
   version?: string;
+  result?: Record<string, unknown>;
+  plugin?: string;
 }
 
 /**
@@ -118,9 +119,7 @@ class PythonBridgeManager {
           break;
 
         case 'archicad_conversion_received':
-          console.log(
-            `Archicad conversion queued for job ${message.jobId}`,
-          );
+          console.log(`Archicad conversion queued for job ${message.jobId}`);
           break;
 
         case 'plugin_conversion_completed':
@@ -196,9 +195,7 @@ class PythonBridgeManager {
    * Handles request from Python to trigger Revit conversion
    */
   private handleRevitConversionRequest(message: PythonMessage): void {
-    console.log(
-      `Python requested Revit conversion for job ${message.jobId}`,
-    );
+    console.log(`Python requested Revit conversion for job ${message.jobId}`);
 
     // TODO: Implement Revit plugin communication
     // For now, just acknowledge the request
@@ -249,21 +246,29 @@ class PythonBridgeManager {
 
     console.log(`✓ Plugin conversion completed for job ${message.jobId}`);
 
-    const result = (message as any).result || {};
+    const result = message.result || {};
 
     // Build Node.js-based download URL that points to the static file server
     // The Python service stores files in outputPath, which we need to map to our static route
-    const outputPath = result.outputPath || '';
-    let downloadUrl = result.downloadUrl;
-    let fileName = result.fileName;
-    let fileSize = result.fileSize || result.outputSize;
+    const outputPath =
+      (typeof result.outputPath === 'string' ? result.outputPath : '') || '';
+    let downloadUrl =
+      typeof result.downloadUrl === 'string' ? result.downloadUrl : undefined;
+    let fileName =
+      typeof result.fileName === 'string' ? result.fileName : undefined;
+    let fileSize: number | undefined =
+      (typeof result.fileSize === 'number'
+        ? result.fileSize
+        : typeof result.outputSize === 'number'
+          ? result.outputSize
+          : undefined) || undefined;
 
     // If we have an outputPath from Python, construct the download URL for Node's static server
     if (outputPath) {
       // Extract the relative path from the outputPath
       // outputPath format: C:\...\backend\node\public\conversion\job-xxx\file.ifc
       const pathParts = outputPath.split(/[/\\]/);
-      const conversionIndex = pathParts.findIndex(p => p === 'conversion');
+      const conversionIndex = pathParts.indexOf('conversion');
 
       if (conversionIndex !== -1) {
         // Build the path from 'conversion' onwards
@@ -308,7 +313,7 @@ class PythonBridgeManager {
 
     wsManager.handleJobError(
       message.jobId,
-      (message as any).error || 'Plugin conversion failed',
+      message.error || 'Plugin conversion failed',
     );
   }
 
@@ -316,9 +321,9 @@ class PythonBridgeManager {
    * Handles plugin status updates
    */
   private handlePluginStatus(message: PythonMessage): void {
-    const plugin = (message as any).plugin as PluginType;
-    const status = (message as any).status as PluginStatus;
-    const version = (message as any).version;
+    const plugin = message.plugin as PluginType;
+    const status = message.status as PluginStatus;
+    const version = message.version;
 
     console.log(`Plugin ${plugin} status: ${status}`);
 
@@ -393,7 +398,10 @@ class PythonBridgeManager {
         try {
           if (socket.readyState === socket.OPEN) {
             socket.send(JSON.stringify(message));
-            console.log(`[PythonBridge] Sent initial ${pluginType} status to client:`, message.status);
+            console.log(
+              `[PythonBridge] Sent initial ${pluginType} status to client:`,
+              message.status,
+            );
           }
         } catch (error) {
           console.error(`Failed to send initial ${pluginType} status:`, error);
@@ -448,7 +456,7 @@ class PythonBridgeManager {
   /**
    * Sends a message to Python service
    */
-  sendToPython(message: any): boolean {
+  sendToPython(message: Record<string, unknown>): boolean {
     if (!this.pythonSocket || !this.connected) {
       console.warn('Cannot send to Python - not connected');
       return false;

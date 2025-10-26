@@ -16,9 +16,8 @@
  */
 
 import axios from 'axios';
-import FormData from 'form-data';
-import { ConversionStatus, wsManager } from '../ws/websocket';
 import { prepareOutputPath } from '../utils/file-staging';
+import { ConversionStatus, wsManager } from '../ws/websocket';
 
 /**
  * Service to interact with Revit via a Python intermediary.
@@ -61,8 +60,7 @@ export async function checkRevitPythonServiceConnection(
     }
 
     const serviceStatus = (data?.status || '').toLowerCase();
-    const revitPluginStatus =
-      data?.pluginWebSockets?.revit || data?.revit;
+    const revitPluginStatus = data?.pluginWebSockets?.revit || data?.revit;
 
     const serviceOnline = ['ok', 'healthy'].includes(serviceStatus);
     const pluginOnline = revitPluginStatus === 'connected';
@@ -86,9 +84,7 @@ export async function checkRevitPythonServiceConnection(
 
     return serviceOnline && pluginOnline;
   } catch (error) {
-    console.error(
-      `Error connecting to Revit Python service: ${error.message}`,
-    );
+    console.error(`Error connecting to Revit Python service: ${error.message}`);
     return false;
   }
 }

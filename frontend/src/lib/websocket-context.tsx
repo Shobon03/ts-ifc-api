@@ -15,7 +15,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { useWebSocket } from './websocket';
 import {
   type ClientMessage,
@@ -25,6 +25,7 @@ import {
   type PluginType,
   type ServerMessage,
 } from './websocket-types';
+import { translateBackendMessage, translatePluginStatus } from './i18n/translator';
 
 interface WebSocketContextType {
   isConnected: boolean;
@@ -56,7 +57,7 @@ export function WebSocketProvider({
       console.log('[WebSocketProvider] unmounted');
     };
   }, []);
-  
+
   const [jobs, setJobs] = useState<Map<string, ConversionJob>>(new Map());
   const [pluginStatuses, setPluginStatuses] = useState<
     Map<PluginType, PluginStatus>
@@ -80,7 +81,7 @@ export function WebSocketProvider({
             jobId: message.jobId,
             status: message.status,
             progress: 0,
-            message: message.message,
+            message: translateBackendMessage(message.message),
             createdAt: message.timestamp,
           });
           return updated;
@@ -96,7 +97,7 @@ export function WebSocketProvider({
               ...existing,
               status: message.status,
               progress: message.progress,
-              message: message.message,
+              message: translateBackendMessage(message.message),
               details: message.details,
             });
           }
@@ -113,7 +114,7 @@ export function WebSocketProvider({
               ...existing,
               status: JobStatus.COMPLETED,
               progress: 100,
-              message: message.message,
+              message: translateBackendMessage(message.message),
               result: message.result,
               completedAt: message.timestamp,
             });
@@ -131,7 +132,7 @@ export function WebSocketProvider({
               ...existing,
               status: JobStatus.ERROR,
               progress: message.progress,
-              message: message.message,
+              message: translateBackendMessage(message.message),
               error: message.error,
             });
           }
@@ -147,7 +148,7 @@ export function WebSocketProvider({
             updated.set(message.jobId, {
               ...existing,
               status: JobStatus.CANCELLED,
-              message: message.message,
+              message: translateBackendMessage(message.message),
             });
           }
           return updated;
@@ -161,7 +162,7 @@ export function WebSocketProvider({
             jobId: message.jobId,
             status: message.status,
             progress: message.progress,
-            message: message.message,
+            message: translateBackendMessage(message.message),
             fileName: message.fileName,
             createdAt: message.createdAt,
             completedAt: message.completedAt,
@@ -194,7 +195,7 @@ export function WebSocketProvider({
         );
         setPluginStatuses((prev) => {
           const updated = new Map(prev);
-          updated.set(message.plugin, message.status);
+          updated.set(message.plugin, translatePluginStatus(message.status) as PluginStatus);
           return updated;
         });
         break;
@@ -212,11 +213,12 @@ export function WebSocketProvider({
             const jobId = (message as any).jobId;
             const existing = updated.get(jobId);
 
+            const rawMessage = (message as any).message || '';
             const jobData = {
               jobId,
               status: (message as any).status || JobStatus.PROCESSING,
               progress: (message as any).progress || 0,
-              message: (message as any).message || '',
+              message: translateBackendMessage(rawMessage),
               details: (message as any).details,
               error: (message as any).error,
               result: (message as any).result,
@@ -239,11 +241,12 @@ export function WebSocketProvider({
             const updated = new Map(prev);
             const jobId = (message as any).jobId;
 
+            const rawMessage = (message as any).message || '';
             updated.set(jobId, {
               jobId,
               status: (message as any).status || JobStatus.QUEUED,
               progress: (message as any).progress || 0,
-              message: (message as any).message || '',
+              message: translateBackendMessage(rawMessage),
               fileName: (message as any).fileName,
               createdAt: (message as any).startTime,
               completedAt: (message as any).endTime,
@@ -255,7 +258,10 @@ export function WebSocketProvider({
 
       case 'subscribed':
         // Confirmação de inscrição no job
-        console.log('[WebSocketContext] Subscribed to job:', (message as any).jobId);
+        console.log(
+          '[WebSocketContext] Subscribed to job:',
+          (message as any).jobId,
+        );
         break;
 
       default:

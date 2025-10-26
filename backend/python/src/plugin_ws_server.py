@@ -69,7 +69,9 @@ class PluginWebSocketServer:
         host: str,
         port: int,
         node_ws_client: NodeJSWebSocketClient,
-        job_event_handler: Optional[Callable[[PluginType, Dict[str, Any]], None]] = None,
+        job_event_handler: Optional[
+            Callable[[PluginType, Dict[str, Any]], None]
+        ] = None,
     ) -> None:
         self._node_ws = node_ws_client
         self._job_event_handler = job_event_handler
@@ -120,9 +122,7 @@ class PluginWebSocketServer:
                 logger.info("No endpoint configured for %s plugin", plugin.value)
                 continue
             logger.info("Plugin bridge connecting to %s at %s", plugin.value, endpoint)
-            task = self._loop.create_task(
-                self._maintain_connection(plugin, endpoint)
-            )
+            task = self._loop.create_task(self._maintain_connection(plugin, endpoint))
             self._connection_tasks[plugin] = task
 
         try:
@@ -152,10 +152,7 @@ class PluginWebSocketServer:
 
             # Close active sockets
             await asyncio.gather(
-                *[
-                    conn.websocket.close()
-                    for conn in list(self._connections.values())
-                ],
+                *[conn.websocket.close() for conn in list(self._connections.values())],
                 return_exceptions=True,
             )
             self._connections.clear()
@@ -177,7 +174,9 @@ class PluginWebSocketServer:
         while not self._stop_requested:
             try:
                 # Increase ping interval/timeout to prevent disconnection during long operations
-                async with websockets.connect(endpoint, ping_interval=60, ping_timeout=300) as websocket:
+                async with websockets.connect(
+                    endpoint, ping_interval=60, ping_timeout=300
+                ) as websocket:
                     connection = PluginConnection(
                         plugin_type=plugin,
                         websocket=websocket,
@@ -257,14 +256,23 @@ class PluginWebSocketServer:
             },
         )
 
-        self._node_ws.send_message(
-            {
-                "type": "plugin_status",
-                "plugin": connection.plugin_type.value,
-                "status": "connected",
-                "message": f"Connected to {connection.endpoint}",
-            }
-        )
+        # Send plugin status to Node.js
+        plugin_status_msg = {
+            "type": "plugin_status",
+            "plugin": connection.plugin_type.value,
+            "status": "connected",
+            "message": f"Connected to {connection.endpoint}",
+        }
+
+        logger.info(f"Attempting to send plugin_status to Node.js: {plugin_status_msg}")
+
+        if self._node_ws.is_connected():
+            sent = self._node_ws.send_message(plugin_status_msg)
+            logger.info(f"Plugin status send result: {sent}")
+        else:
+            logger.warning(
+                f"Node.js WebSocket not connected yet - cannot send {connection.plugin_type.value} status"
+            )
 
     def _unregister_connection(self, plugin: PluginType) -> None:
         removed: Optional[PluginConnection]
@@ -295,7 +303,9 @@ class PluginWebSocketServer:
         connection: PluginConnection,
         raw_message: str,
     ) -> None:
-        logger.info(f"Received from {connection.plugin_type.value} plugin: {raw_message}")
+        logger.info(
+            f"Received from {connection.plugin_type.value} plugin: {raw_message}"
+        )
 
         try:
             message = json.loads(raw_message)
@@ -389,7 +399,9 @@ class PluginWebSocketServer:
 
         if message_type in {"conversion_completed", "completed", "success"}:
             result_payload = message.get("result") or {}
-            download_url = result_payload.get("downloadUrl") or f"/jobs/{job_id}/download"
+            download_url = (
+                result_payload.get("downloadUrl") or f"/jobs/{job_id}/download"
+            )
             self._node_ws.send_progress(
                 job_id,
                 100,
@@ -430,7 +442,9 @@ class PluginWebSocketServer:
             return
 
         if message_type in {"conversion_failed", "error"}:
-            error_text = message.get("error") or message.get("message") or "Conversion failed"
+            error_text = (
+                message.get("error") or message.get("message") or "Conversion failed"
+            )
             self._node_ws.send_error(job_id, error_text)
             self._node_ws.send_message(
                 {
@@ -488,11 +502,15 @@ class PluginWebSocketServer:
         output_path: Optional[str] = None,
     ) -> bool:
         if not pln_path and not ifc_path:
-            logger.error("Either pln_path or ifc_path must be provided for Archicad conversion")
+            logger.error(
+                "Either pln_path or ifc_path must be provided for Archicad conversion"
+            )
             return False
 
         if pln_path and ifc_path:
-            logger.error("Only one of pln_path or ifc_path should be provided for Archicad conversion")
+            logger.error(
+                "Only one of pln_path or ifc_path should be provided for Archicad conversion"
+            )
             return False
 
         payload: Dict[str, Any] = {
@@ -535,6 +553,21 @@ class PluginWebSocketServer:
 
     def is_plugin_connected(self, plugin: PluginType) -> bool:
         return plugin in self._connections
+
+    def resend_all_plugin_statuses(self) -> None:
+        """Resend current plugin statuses to Node.js (useful after Node.js reconnects)."""
+        with self._lock:
+            for plugin, connection in self._connections.items():
+                logger.info(f"Resending {plugin.value} plugin status to Node.js")
+                self._node_ws.send_message(
+                    {
+                        "type": "plugin_status",
+                        "plugin": plugin.value,
+                        "status": "connected",
+                        "version": connection.version,
+                        "message": f"Connected to {connection.endpoint}",
+                    }
+                )
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -579,7 +612,7 @@ class PluginWebSocketServer:
         # - Revit: Uses Newtonsoft.Json which requires valid JSON (double backslashes)
         if plugin == PluginType.ARCHICAD:
             # Convert double backslashes to single for Archicad
-            json_payload = json_payload.replace('\\\\', '\\')
+            json_payload = json_payload.replace("\\\\", "\\")
         # For Revit and connection_ack messages, keep valid JSON (no replacement)
 
         logger.info(f"Sending to plugin: {json_payload}")

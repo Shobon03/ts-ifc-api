@@ -18,9 +18,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { FileConversionWithWebSocket } from '../components/file-conversion-with-websocket';
 
-
 export const Route = createFileRoute('/ifc-conversion')({
-  component: () => (
-      <FileConversionWithWebSocket />
-  ),
+  component: () => <FileConversionWithWebSocket />,
 });

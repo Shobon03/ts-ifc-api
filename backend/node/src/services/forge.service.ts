@@ -33,11 +33,7 @@ const authenticationClient = new AuthenticationClient();
 const ossClient = new OssClient();
 const modelDerivativeClient = new ModelDerivativeClient();
 
-const CONVERTED_MODELS_DIR = path.join(
-  process.cwd(),
-  'public',
-  'conversion',
-);
+const CONVERTED_MODELS_DIR = path.join(process.cwd(), 'public', 'conversion');
 
 function toBase64Url(value: string): string {
   return Buffer.from(value)
@@ -261,8 +257,13 @@ async function monitorConversionProgress(
           manifestProgress = 100;
         } else if (typeof progress === 'string') {
           // Remove % sign and parse
-          const numericProgress = Number.parseInt(progress.replace('%', ''), 10);
-          manifestProgress = isNaN(numericProgress) ? 0 : numericProgress;
+          const numericProgress = Number.parseInt(
+            progress.replace('%', ''),
+            10,
+          );
+          manifestProgress = Number.isNaN(numericProgress)
+            ? 0
+            : numericProgress;
         } else if (typeof progress === 'number') {
           manifestProgress = progress;
         }

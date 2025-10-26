@@ -43,6 +43,7 @@ class NodeJSWebSocketClient:
         self.connected = False
         self.reconnect_interval = 5  # seconds
         self.message_handler: Optional[Callable[[Dict], None]] = None
+        self.on_connect_handler: Optional[Callable[[], None]] = None
         self.thread: Optional[threading.Thread] = None
         self.should_reconnect = True
 
@@ -102,13 +103,22 @@ class NodeJSWebSocketClient:
             {"type": "identify", "service": "python-archicad", "version": "1.0.0"}
         )
 
+        # Call on_connect callback if set (to resend plugin statuses)
+        if self.on_connect_handler:
+            try:
+                self.on_connect_handler()
+            except Exception as e:
+                logger.error(f"Error in on_connect_handler: {e}")
+
     def _on_message(self, ws, message):
         """
         Called when a message is received from Node.js.
         """
         try:
             data = json.loads(message)
-            logger.debug(f"Received message from Node.js: {data.get('type', 'unknown')}")
+            logger.debug(
+                f"Received message from Node.js: {data.get('type', 'unknown')}"
+            )
 
             # Call user-defined message handler
             if self.message_handler:
@@ -173,7 +183,12 @@ class NodeJSWebSocketClient:
             return False
 
     def send_progress(
-        self, job_id: str, progress: int, status: str, message: str, details: Dict = None
+        self,
+        job_id: str,
+        progress: int,
+        status: str,
+        message: str,
+        details: Dict = None,
     ):
         """
         Send progress update for a conversion job to Node.js.
@@ -262,3 +277,14 @@ class NodeJSWebSocketClient:
         """
         self.message_handler = handler
         logger.info("Message handler set")
+
+    def set_on_connect_handler(self, handler: Callable[[], None]):
+        """
+        Set callback function to be called when connection to Node.js is established.
+        Useful for resending plugin statuses after reconnection.
+
+        Args:
+            handler: Function to call when connected (no arguments)
+        """
+        self.on_connect_handler = handler
+        logger.info("On-connect handler set")

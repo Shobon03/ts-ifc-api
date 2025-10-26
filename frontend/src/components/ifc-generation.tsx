@@ -38,11 +38,13 @@ export function IFCGeneration() {
       return;
     }
 
-    const extension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    const extension = file.name
+      .toLowerCase()
+      .substring(file.name.lastIndexOf('.'));
 
     if (!ALLOWED_EXTENSIONS.includes(extension)) {
       setError(
-        `Formato de arquivo inválido. Apenas arquivos ${ALLOWED_EXTENSIONS.join(', ')} são permitidos.`
+        `Formato de arquivo inválido. Apenas arquivos ${ALLOWED_EXTENSIONS.join(', ')} são permitidos.`,
       );
       setSelectedFile(null);
       return;
@@ -90,10 +92,13 @@ export function IFCGeneration() {
       formData.append('type', 'ifc');
 
       // Fazer upload via HTTP POST
-      const response = await fetch('http://localhost:3000/models/generate-ifc', {
-        method: 'POST',
-        body: formData,
-      });
+      const response = await fetch(
+        'http://localhost:3000/models/generate-ifc',
+        {
+          method: 'POST',
+          body: formData,
+        },
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -108,7 +113,9 @@ export function IFCGeneration() {
       // O WebSocket já está conectado e vai receber as atualizações automaticamente
       // através do pythonBridge que registramos na conexão
     } catch (err) {
-      setError(`Erro ao processar arquivo: ${err instanceof Error ? err.message : String(err)}`);
+      setError(
+        `Erro ao processar arquivo: ${err instanceof Error ? err.message : String(err)}`,
+      );
     } finally {
       setIsUploading(false);
     }
@@ -124,39 +131,40 @@ export function IFCGeneration() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-gray-900">Geração de IFC</h1>
-        <p className="text-gray-600">
-          Converta arquivos Revit (.rvt) ou Archicad (.pln) para o formato IFC padrão.
+    <div className='mx-auto max-w-4xl space-y-6 p-6'>
+      <div className='space-y-2'>
+        <h1 className='text-3xl font-bold text-gray-900'>Geração de IFC</h1>
+        <p className='text-gray-600'>
+          Converta arquivos Revit (.rvt) ou Archicad (.pln) para o formato IFC
+          padrão.
         </p>
       </div>
 
       <PluginStatusBar />
 
       {!currentJobId ? (
-        <div className="space-y-6">
+        <div className='space-y-6'>
           <div
             onDrop={handleDrop}
             onDragOver={handleDragOver}
-            className="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-center transition-colors hover:border-gray-400 hover:bg-gray-100"
+            className='rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-center transition-colors hover:border-gray-400 hover:bg-gray-100'
           >
             <input
               ref={fileInputRef}
-              type="file"
-              accept=".rvt,.pln"
+              type='file'
+              accept='.rvt,.pln'
               onChange={handleFileChange}
-              className="hidden"
-              id={"file-upload"}
+              className='hidden'
+              id={'file-upload'}
             />
-            <label htmlFor="file-upload" className="cursor-pointer">
-              <div className="flex flex-col items-center gap-4">
-                <Upload className="h-12 w-12 text-gray-400" />
+            <label htmlFor='file-upload' className='cursor-pointer'>
+              <div className='flex flex-col items-center gap-4'>
+                <Upload className='h-12 w-12 text-gray-400' />
                 <div>
-                  <p className="text-lg font-semibold text-gray-700">
+                  <p className='text-lg font-semibold text-gray-700'>
                     Clique para selecionar ou arraste um arquivo
                   </p>
-                  <p className="mt-1 text-sm text-gray-500">
+                  <p className='mt-1 text-sm text-gray-500'>
                     Formatos aceitos: .rvt, .pln (máx. 100MB)
                   </p>
                 </div>
@@ -165,23 +173,25 @@ export function IFCGeneration() {
           </div>
 
           {selectedFile && (
-            <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <FileText className="h-10 w-10 text-blue-500" />
-                <div className="flex-1">
-                  <p className="font-semibold text-gray-900">{selectedFile.name}</p>
-                  <p className="text-sm text-gray-600">
+            <div className='rounded-lg border border-gray-200 bg-white p-4 shadow-sm'>
+              <div className='flex items-center gap-3'>
+                <FileText className='h-10 w-10 text-blue-500' />
+                <div className='flex-1'>
+                  <p className='font-semibold text-gray-900'>
+                    {selectedFile.name}
+                  </p>
+                  <p className='text-sm text-gray-600'>
                     {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
                   </p>
                 </div>
                 <div>
                   <button
-                    type="button"
+                    type='button'
                     onClick={handleReset}
-                    className="text-sm text-red-600 hover:underline cursor-pointer border border-red-600 rounded-md p-2 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all"
-                    title="Remover arquivo"
+                    className='text-sm text-red-600 hover:underline cursor-pointer border border-red-600 rounded-md p-2 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all'
+                    title='Remover arquivo'
                   >
-                    <Trash className="inline h-5 w-5" />  
+                    <Trash className='inline h-5 w-5' />
                   </button>
                 </div>
               </div>
@@ -189,12 +199,12 @@ export function IFCGeneration() {
           )}
 
           {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="flex">
-                <AlertCircle className="h-5 w-5 text-red-400" />
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">Erro</h3>
-                  <div className="mt-2 text-sm text-red-700">
+            <div className='rounded-md bg-red-50 p-4'>
+              <div className='flex'>
+                <AlertCircle className='h-5 w-5 text-red-400' />
+                <div className='ml-3'>
+                  <h3 className='text-sm font-medium text-red-800'>Erro</h3>
+                  <div className='mt-2 text-sm text-red-700'>
                     <p>{error}</p>
                   </div>
                 </div>
@@ -202,31 +212,32 @@ export function IFCGeneration() {
             </div>
           )}
 
-          <div className="flex gap-4">
+          <div className='flex gap-4'>
             <button
-              type="button"
+              type='button'
               onClick={handleSubmit}
               disabled={!selectedFile || isUploading}
-              className="flex-1 rounded-md bg-blue-600 px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 cursor-pointer transition-all"
+              className='flex-1 rounded-md bg-blue-600 px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 cursor-pointer transition-all'
             >
               {isUploading ? 'Enviando...' : 'Converter para IFC'}
             </button>
             <button
-              type="button"
+              type='button'
               onClick={handleReset}
-              className="rounded-md border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer transition-all"
+              disabled={!selectedFile || isUploading}
+              className='rounded-md border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer transition-all disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500'
             >
               Limpar
             </button>
           </div>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className='space-y-6'>
           <ConversionProgress jobId={currentJobId} />
           <button
-            type="button"
+            type='button'
             onClick={handleReset}
-            className="w-full rounded-md border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer transition-all"
+            className='w-full rounded-md border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer transition-all'
           >
             Nova Conversão
           </button>

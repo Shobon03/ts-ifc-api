@@ -65,7 +65,7 @@ export interface ConversionProgress {
   status: ConversionStatus;
   progress: number;
   message: string;
-  details?: any;
+  details?: Record<string, unknown>;
   error?: string;
   result?: {
     downloadUrl?: string;
@@ -181,31 +181,6 @@ class WebSocketManager {
     setTimeout(() => {
       this.cleanupJob(jobId);
     }, 30000);
-  }
-
-  /**
-   * Handles WebSocket disconnections by updating the job status to CANCELLED if not completed.
-   * This method is called when a WebSocket connection is closed unexpectedly.
-   * @param {string} jobId - The unique identifier of the job associated with the disconnected socket.
-   * @private
-   * @example
-   * this.handleSocketDisconnect('job-123');
-   * @description This method checks if the job associated with the disconnected socket is still active.
-   * If the job is not completed or in an error state, it updates the job status to CANCELLED and sets the end time.
-   * This ensures that jobs are properly marked as cancelled when clients disconnect unexpectedly.
-   * @see {@link ConversionJob}
-   * @see {@link ConversionStatus}
-   */
-  private handleSocketDisconnect(jobId: string) {
-    const job = this.jobs.get(jobId);
-    if (
-      job &&
-      job.status !== ConversionStatus.COMPLETED &&
-      job.status !== ConversionStatus.ERROR
-    ) {
-      job.status = ConversionStatus.CANCELLED;
-      job.endTime = new Date();
-    }
   }
 
   /**
@@ -566,7 +541,7 @@ class WebSocketManager {
     progress: number,
     status: ConversionStatus,
     message: string,
-    details?: any,
+    details?: Record<string, unknown>,
   ): void {
     const job = this.jobs.get(jobId);
     if (!job) {

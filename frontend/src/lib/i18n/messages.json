@@ -1,0 +1,248 @@
+{
+  "connection": {
+    "established": {
+      "pt-BR": "Conexão WebSocket estabelecida",
+      "en-US": "WebSocket connection established"
+    },
+    "connected": {
+      "pt-BR": "Conectado ao servidor WebSocket",
+      "en-US": "Connected to WebSocket server"
+    },
+    "disconnected": {
+      "pt-BR": "Desconectado do servidor WebSocket",
+      "en-US": "Disconnected from WebSocket server"
+    },
+    "connecting": {
+      "pt-BR": "Conectando ao servidor...",
+      "en-US": "Connecting to server..."
+    },
+    "reconnecting": {
+      "pt-BR": "Reconectando ao servidor...",
+      "en-US": "Reconnecting to server..."
+    },
+    "error": {
+      "pt-BR": "Erro na conexão WebSocket",
+      "en-US": "WebSocket connection error"
+    }
+  },
+  "job": {
+    "created": {
+      "pt-BR": "Trabalho criado com sucesso",
+      "en-US": "Job created successfully"
+    },
+    "queued": {
+      "pt-BR": "Na fila de processamento",
+      "en-US": "Queued for processing"
+    },
+    "processing": {
+      "pt-BR": "Processando...",
+      "en-US": "Processing..."
+    },
+    "completed": {
+      "pt-BR": "Conversão concluída com sucesso",
+      "en-US": "Conversion completed successfully"
+    },
+    "failed": {
+      "pt-BR": "Erro durante a conversão",
+      "en-US": "Error during conversion"
+    },
+    "cancelled": {
+      "pt-BR": "Conversão cancelada",
+      "en-US": "Conversion cancelled"
+    }
+  },
+  "plugin": {
+    "connected": {
+      "pt-BR": "Conectado",
+      "en-US": "Connected"
+    },
+    "disconnected": {
+      "pt-BR": "Desconectado",
+      "en-US": "Disconnected"
+    },
+    "connecting": {
+      "pt-BR": "Conectando",
+      "en-US": "Connecting"
+    },
+    "error": {
+      "pt-BR": "Erro",
+      "en-US": "Error"
+    },
+    "tooltip_connected": {
+      "pt-BR": "Plugin está conectado",
+      "en-US": "Plugin is connected"
+    },
+    "tooltip_disconnected": {
+      "pt-BR": "Plugin não está conectado",
+      "en-US": "Plugin is not connected"
+    },
+    "status_bar_label": {
+      "pt-BR": "Status dos Plugins:",
+      "en-US": "Plugin Status:"
+    }
+  },
+  "progress": {
+    "uploading": {
+      "pt-BR": "Enviando arquivo...",
+      "en-US": "Uploading file..."
+    },
+    "downloading": {
+      "pt-BR": "Preparando download...",
+      "en-US": "Preparing download..."
+    },
+    "converting": {
+      "pt-BR": "Convertendo arquivo...",
+      "en-US": "Converting file..."
+    },
+    "validating": {
+      "pt-BR": "Validando arquivo...",
+      "en-US": "Validating file..."
+    },
+    "awaiting_upload": {
+      "pt-BR": "Aguardando upload",
+      "en-US": "Awaiting upload"
+    },
+    "file_uploaded": {
+      "pt-BR": "Arquivo enviado",
+      "en-US": "File uploaded"
+    },
+    "starting_conversion": {
+      "pt-BR": "Iniciando conversão",
+      "en-US": "Starting conversion"
+    },
+    "conversion_in_progress": {
+      "pt-BR": "Conversão em andamento",
+      "en-US": "Conversion in progress"
+    },
+    "conversion_completed": {
+      "pt-BR": "Conversão concluída",
+      "en-US": "Conversion completed"
+    },
+    "preparing_download": {
+      "pt-BR": "Preparando arquivo para download",
+      "en-US": "Preparing file for download"
+    },
+    "upload_to_python": {
+      "pt-BR": "Arquivo enviado para processamento",
+      "en-US": "File uploaded for processing"
+    },
+    "processing_archicad": {
+      "pt-BR": "Processando com Archicad",
+      "en-US": "Processing with Archicad"
+    },
+    "processing_revit": {
+      "pt-BR": "Processando com Revit",
+      "en-US": "Processing with Revit"
+    },
+    "generating_ifc": {
+      "pt-BR": "Gerando arquivo IFC",
+      "en-US": "Generating IFC file"
+    },
+    "generating_rvt": {
+      "pt-BR": "Gerando arquivo Revit",
+      "en-US": "Generating Revit file"
+    },
+    "generating_pln": {
+      "pt-BR": "Gerando arquivo Archicad",
+      "en-US": "Generating Archicad file"
+    }
+  },
+  "errors": {
+    "file_upload_failed": {
+      "pt-BR": "Falha ao enviar arquivo",
+      "en-US": "File upload failed"
+    },
+    "conversion_failed": {
+      "pt-BR": "Falha na conversão",
+      "en-US": "Conversion failed"
+    },
+    "plugin_not_available": {
+      "pt-BR": "Plugin não disponível",
+      "en-US": "Plugin not available"
+    },
+    "invalid_file_format": {
+      "pt-BR": "Formato de arquivo inválido",
+      "en-US": "Invalid file format"
+    },
+    "file_too_large": {
+      "pt-BR": "Arquivo muito grande",
+      "en-US": "File too large"
+    },
+    "server_error": {
+      "pt-BR": "Erro no servidor",
+      "en-US": "Server error"
+    },
+    "network_error": {
+      "pt-BR": "Erro de rede",
+      "en-US": "Network error"
+    },
+    "timeout": {
+      "pt-BR": "Tempo limite excedido",
+      "en-US": "Timeout exceeded"
+    },
+    "unknown_error": {
+      "pt-BR": "Erro desconhecido",
+      "en-US": "Unknown error"
+    },
+    "job_not_found": {
+      "pt-BR": "Trabalho não encontrado",
+      "en-US": "Job not found"
+    },
+    "archicad_plugin_disconnected": {
+      "pt-BR": "Plugin Archicad desconectado",
+      "en-US": "Archicad plugin disconnected"
+    },
+    "revit_plugin_disconnected": {
+      "pt-BR": "Plugin Revit desconectado",
+      "en-US": "Revit plugin disconnected"
+    }
+  },
+  "messages": {
+    "awaiting_conversion": {
+      "pt-BR": "Aguardando conversão",
+      "en-US": "Awaiting conversion"
+    },
+    "conversion_request_accepted": {
+      "pt-BR": "Solicitação de conversão aceita",
+      "en-US": "Conversion request accepted"
+    },
+    "file_registered": {
+      "pt-BR": "Arquivo registrado",
+      "en-US": "File registered"
+    },
+    "using_staged_file": {
+      "pt-BR": "Usando arquivo preparado",
+      "en-US": "Using staged file"
+    },
+    "plugin_started_conversion": {
+      "pt-BR": "Plugin iniciou conversão",
+      "en-US": "Plugin started conversion"
+    },
+    "plugin_completed_conversion": {
+      "pt-BR": "Plugin completou conversão",
+      "en-US": "Plugin completed conversion"
+    },
+    "subscribed_to_job": {
+      "pt-BR": "Inscrito em atualizações do trabalho",
+      "en-US": "Subscribed to job updates"
+    },
+    "successfully_subscribed": {
+      "pt-BR": "Inscrito com sucesso nas atualizações",
+      "en-US": "Successfully subscribed to updates"
+    }
+  },
+  "default": {
+    "processing": {
+      "pt-BR": "Processando",
+      "en-US": "Processing"
+    },
+    "please_wait": {
+      "pt-BR": "Por favor, aguarde...",
+      "en-US": "Please wait..."
+    },
+    "unknown": {
+      "pt-BR": "Desconhecido",
+      "en-US": "Unknown"
+    }
+  }
+}

@@ -34,7 +34,7 @@ export const Route = createRootRoute({
 });
 
 function RootComponent() {
-  const location = useLocation();
+  const _location = useLocation();
 
   const [darkMode, setDarkMode] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -62,38 +62,79 @@ function RootComponent() {
   // }, [location]);
 
   return (
-      <div
-        className={`min-h-screen transition-colors duration-300 ${
-          darkMode ? 'dark' : ''
-        }`}
-      >
-        <nav className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <Link
-              to="/"
-              className="text-xl font-bold text-gray-900 dark:text-white"
+    <div
+      className={`min-h-screen transition-colors duration-300 ${
+        darkMode ? 'dark' : ''
+      }`}
+    >
+      <nav className='bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4'>
+        <div className='max-w-7xl mx-auto flex items-center justify-between'>
+          <Link
+            to='/'
+            className='text-xl font-bold text-gray-900 dark:text-white'
+          >
+            IFC API
+          </Link>
+
+          <div className='hidden md:flex items-center space-x-6'>
+            <NavLink to='/' name='Home' />
+            <NavLink to='/about' name='Sobre' />
+            <NavLink
+              to='/model-transformation'
+              name='Transformação .rvt ↔ .pln'
+            />
+            <NavLink to='/model-generation' name='Gerar IFC' />
+            <NavLink to='/model-validation' name='Validação de IFC' />
+          </div>
+
+          <div className='hidden md:flex items-center space-x-4'>
+            <WebSocketStatus showDetails={false} />
+            <SquareLinkButton
+              href='https://github.com/Shobon03/ts-ifc-api'
+              title='Repositório do GitHub'
             >
-              IFC API
-            </Link>
+              <SiGithub size={20} title='' />
+            </SquareLinkButton>
+            <SquareButton
+              onClick={() => setDarkMode(!darkMode)}
+              title={`Mudar para modo ${darkMode ? 'claro' : 'escuro'}`}
+            >
+              {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </SquareButton>
+          </div>
 
-            <div className="hidden md:flex items-center space-x-6">
-              <NavLink to="/" name="Home" />
-              <NavLink to="/about" name="Sobre" />
+          <div className='md:hidden flex items-center'>
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className='text-gray-900 dark:text-white'
+              title='Abrir menu'
+              type='button'
+            >
+              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
+        </div>
+
+        {isMenuOpen && (
+          <div className='md:hidden mt-4'>
+            <div className='flex flex-col space-y-2'>
+              <NavLink to='/' name='Home' />
+              <NavLink to='/about' name='Sobre' />
               <NavLink
-                to="/model-transformation"
-                name="Transformação .rvt ↔ .pln"
+                to='/model-transformation'
+                name='Transformação .rvt ↔ .pln'
               />
-              <NavLink to="/model-generation" name="Gerar IFC" />
-              <NavLink to="/model-validation" name="Validação de IFC" />
+              <NavLink to='/model-generation' name='Gerar IFC' />
+              <NavLink to='/model-validation' name='Validação de IFC' />
+              <NavLink to='/websocket-demo' name='WebSocket Demo' />
             </div>
-
-            <div className="hidden md:flex items-center space-x-4">
+            <div className='border-t border-gray-200 dark:border-gray-700 mt-4 pt-4 flex items-center space-x-4'>
               <WebSocketStatus showDetails={false} />
               <SquareLinkButton
-                href="https://github.com/Shobon03/ts-ifc-api"
-                title="Repositório do GitHub"
+                href='https://github.com/Shobon03/ts-ifc-api'
+                title='Repositório do GitHub'
               >
-                <SiGithub size={20} title="" />
+                <SiGithub size={20} title='' />
               </SquareLinkButton>
               <SquareButton
                 onClick={() => setDarkMode(!darkMode)}
@@ -102,55 +143,13 @@ function RootComponent() {
                 {darkMode ? <Sun size={20} /> : <Moon size={20} />}
               </SquareButton>
             </div>
-
-            <div className="md:hidden flex items-center">
-              <button
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="text-gray-900 dark:text-white"
-                title="Abrir menu"
-                type="button"
-              >
-                {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-              </button>
-            </div>
           </div>
-
-          {isMenuOpen && (
-            <div className="md:hidden mt-4">
-              <div className="flex flex-col space-y-2">
-                <NavLink to="/" name="Home" />
-                <NavLink to="/about" name="Sobre" />
-                <NavLink
-                  to="/model-transformation"
-                  name="Transformação .rvt ↔ .pln"
-                />
-                <NavLink to="/model-generation" name="Gerar IFC" />
-                <NavLink to="/model-validation" name="Validação de IFC" />
-                <NavLink to="/websocket-demo" name="WebSocket Demo" />
-              </div>
-              <div className="border-t border-gray-200 dark:border-gray-700 mt-4 pt-4 flex items-center space-x-4">
-                <WebSocketStatus showDetails={false} />
-                <SquareLinkButton
-                  href="https://github.com/Shobon03/ts-ifc-api"
-                  title="Repositório do GitHub"
-                >
-                  <SiGithub size={20} title="" />
-                </SquareLinkButton>
-                <SquareButton
-                  onClick={() => setDarkMode(!darkMode)}
-                  title={`Mudar para modo ${darkMode ? 'claro' : 'escuro'}`}
-                >
-                  {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-                </SquareButton>
-              </div>
-            </div>
-          )}
-        </nav>
-        <main className='bg-white dark:bg-gray-900 text-gray-900 dark:text-white'>
-          <Outlet />
-        </main>
-        <TanStackRouterDevtools initialIsOpen={false} />
-      </div>
-    
+        )}
+      </nav>
+      <main className='bg-white dark:bg-gray-900 text-gray-900 dark:text-white min-h-[calc(100vh-69px)]'>
+        <Outlet />
+      </main>
+      <TanStackRouterDevtools initialIsOpen={false} />
+    </div>
   );
 }

@@ -17,12 +17,12 @@
 
 import axios from 'axios';
 import FormData from 'form-data';
-import { ConversionStatus, wsManager } from '../ws/websocket';
 import {
   cleanupStagedFile,
   prepareOutputPath,
   stageFile,
 } from '../utils/file-staging';
+import { ConversionStatus, wsManager } from '../ws/websocket';
 
 /**
  * Service to interact with Archicad via a Python intermediary.
@@ -296,7 +296,8 @@ export async function sendIfcToArchicadPythonServiceWS(
     }
 
     const message =
-      response.data?.message || 'IFC to PLN conversion dispatched to Archicad plugin';
+      response.data?.message ||
+      'IFC to PLN conversion dispatched to Archicad plugin';
 
     wsManager.updateProgress(jobId, 50, ConversionStatus.PROCESSING, message, {
       pythonJobId: response.data?.jobId,

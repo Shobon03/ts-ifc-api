@@ -16,8 +16,9 @@
  */
 
 import { Circle } from 'lucide-react';
+import { translate } from '../lib/i18n/translator';
 import { usePluginStatus } from '../lib/websocket-context';
-import { PluginType, PluginStatus } from '../lib/websocket-types';
+import { PluginStatus, PluginType } from '../lib/websocket-types';
 
 interface PluginStatusIndicatorProps {
   plugin: PluginType;
@@ -48,13 +49,13 @@ export function PluginStatusIndicator({
   const getStatusText = () => {
     switch (status) {
       case PluginStatus.CONNECTED:
-        return 'Conectado';
+        return translate('plugin', 'connected', 'Conectado');
       case PluginStatus.DISCONNECTED:
-        return 'Desconectado';
+        return translate('plugin', 'disconnected', 'Desconectado');
       case PluginStatus.ERROR:
-        return 'Erro';
+        return translate('plugin', 'error', 'Erro');
       default:
-        return 'Desconhecido';
+        return translate('default', 'unknown', 'Desconhecido');
     }
   };
 
@@ -70,11 +71,25 @@ export function PluginStatusIndicator({
   };
 
   return (
-    <div className={`inline-flex items-center gap-2 select-none ${className}`} title={status === 'connected' ? 'Plugin está conectado' : 'Plugin não está conectado'}>
-      <Circle className={`h-3 w-3 ${getStatusColor()} fill-current select-none`} />
+    <div
+      className={`inline-flex items-center gap-2 select-none ${className}`}
+      title={
+        status === 'connected'
+          ? translate('plugin', 'tooltip_connected', 'Plugin está conectado')
+          : translate(
+              'plugin',
+              'tooltip_disconnected',
+              'Plugin não está conectado',
+            )
+      }
+    >
+      <Circle
+        className={`h-3 w-3 ${getStatusColor()} fill-current select-none`}
+      />
       {showLabel && (
-        <span className="text-sm text-gray-700 select-none" >
-          <span className="font-medium">{getPluginName()}</span>: {getStatusText()}
+        <span className='text-sm text-gray-700 select-none'>
+          <span className='font-medium'>{getPluginName()}</span>:{' '}
+          {getStatusText()}
         </span>
       )}
     </div>
@@ -83,8 +98,10 @@ export function PluginStatusIndicator({
 
 export function PluginStatusBar() {
   return (
-    <div className="flex items-center gap-4 rounded-lg border border-gray-200 bg-white px-4 py-2 shadow-sm">
-      <span className="text-sm font-medium text-gray-600">Status dos Plugins:</span>
+    <div className='flex items-center gap-4 rounded-lg border border-gray-200 bg-white px-4 py-2 shadow-sm'>
+      <span className='text-sm font-medium text-gray-600'>
+        {translate('plugin', 'status_bar_label', 'Status dos Plugins:')}
+      </span>
       <PluginStatusIndicator plugin={PluginType.REVIT} />
       <PluginStatusIndicator plugin={PluginType.ARCHICAD} />
     </div>

@@ -15,9 +15,21 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { createFileRoute } from '@tanstack/react-router';
-import { ModelTransformation } from '../components/model-transformation';
+/**
+ * Application configuration
+ * Uses environment variables when available, with sensible defaults
+ */
+export const config = {
+  /**
+   * Backend API base URL
+   * Default: http://localhost:3000 (development)
+   */
+  backendUrl: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000',
 
-export const Route = createFileRoute('/model-transformation')({
-  component: () => <ModelTransformation />,
-});
+  /**
+   * WebSocket URL for real-time updates
+   * Default: ws://localhost:3000/models/ws/conversion
+   */
+  wsUrl:
+    import.meta.env.VITE_WS_URL || 'ws://localhost:3000/models/ws/conversion',
+} as const;

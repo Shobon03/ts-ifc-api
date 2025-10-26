@@ -15,23 +15,23 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { promises as fs } from 'node:fs';
+import path, { basename, extname } from 'node:path';
 import type { MultipartFile, MultipartValue } from '@fastify/multipart';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { promises as fs } from 'fs';
-import path, { basename, extname } from 'path';
 import z from 'zod';
 import {
   sendFileToArchicadPythonServiceWS,
   sendIfcToArchicadPythonServiceWS,
 } from '../services/archicad.service';
-import { sendFileToRevitPythonServiceWS } from '../services/revit.service';
 import { convertRvtToIfcWS } from '../services/forge.service';
 import { IfcValidator } from '../services/ifc.service';
+import { sendFileToRevitPythonServiceWS } from '../services/revit.service';
 import { BIMFileExportType } from '../types/formats';
 import { MAX_FILE_SIZE } from '../utils/max-filesize';
-import { wsManager } from '../ws/websocket';
 import { pythonBridge } from '../ws/python-bridge';
+import { wsManager } from '../ws/websocket';
 
 const BASE_URL = '/models';
 const TAGS = ['Models'];
@@ -79,13 +79,20 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
   const app = instance.withTypeProvider<ZodTypeProvider>();
 
   app.register(async (app) => {
-  app.get(`${BASE_URL}/ws/conversion`, { websocket: true }, (socket, req) => {
+    app.get(`${BASE_URL}/ws/conversion`, { websocket: true }, (socket, req) => {
       // Log incoming websocket upgrade headers to help debugging browser handshake issues
       try {
-        const origin = (req.headers && (req.headers as any).origin) || 'no-origin';
+        const origin =
+          (req.headers.origin as string | undefined) || 'no-origin';
         const host = req.headers?.host || 'no-host';
-        const remote = (req.raw && req.raw.socket && (req.raw.socket as any).remoteAddress) || 'unknown-remote';
-        console.log(`WebSocket upgrade request for /models/ws/conversion - origin=${origin} host=${host} remote=${remote} url=${req.url}`);
+        const remote =
+          (req.raw?.socket &&
+            'remoteAddress' in req.raw.socket &&
+            (req.raw.socket.remoteAddress as string)) ||
+          'unknown-remote';
+        console.log(
+          `WebSocket upgrade request for /models/ws/conversion - origin=${origin} host=${host} remote=${remote} url=${req.url}`,
+        );
         console.log('WebSocket upgrade headers:', req.headers);
       } catch (err) {
         console.error('Failed to log websocket upgrade headers:', err);
@@ -96,18 +103,33 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
       const jobId = url.searchParams.get('jobId');
 
       // small helper to send safely and log failures without throwing
-      const safeSend = (payload: any) => {
-        const msg = typeof payload === 'string' ? payload : JSON.stringify(payload);
+      const safeSend = (payload: string | Record<string, unknown>) => {
+        const msg =
+          typeof payload === 'string' ? payload : JSON.stringify(payload);
         try {
-          if (socket && (socket as any).readyState === (socket as any).OPEN) {
-            console.log(`[WebSocket SEND] ${new Date().toISOString()} -> ${msg.substring(0, 200)}`);
+          if (
+            socket &&
+            'readyState' in socket &&
+            socket.readyState === socket.OPEN
+          ) {
+            console.log(
+              `[WebSocket SEND] ${new Date().toISOString()} -> ${msg.substring(0, 200)}`,
+            );
             socket.send(msg);
             return true;
           }
-          console.warn('[WebSocket SEND] socket not open, readyState=', (socket as any).readyState);
+          console.warn(
+            '[WebSocket SEND] socket not open, readyState=',
+            'readyState' in socket ? socket.readyState : 'unknown',
+          );
           return false;
         } catch (err) {
-          console.error('[WebSocket SEND] failed to send message', err, 'payload=', msg);
+          console.error(
+            '[WebSocket SEND] failed to send message',
+            err,
+            'payload=',
+            msg,
+          );
           try {
             // attempt graceful close if send fails
             socket.close(1011, 'Internal send error');
@@ -129,15 +151,22 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
             const subscribeJobId = data.jobId || jobId;
 
             if (!subscribeJobId) {
-              safeSend({ type: 'error', message: 'Job ID is required for subscription' });
+              safeSend({
+                type: 'error',
+                message: 'Job ID is required for subscription',
+              });
               return;
             }
 
             wsManager.subscribeToJob(subscribeJobId, socket);
 
-            safeSend({ type: 'subscribed', jobId: subscribeJobId, message: 'Successfully subscribed to job updates' });
+            safeSend({
+              type: 'subscribed',
+              jobId: subscribeJobId,
+              message: 'Successfully subscribed to job updates',
+            });
           }
-        } catch (error) {
+        } catch (_error) {
           safeSend({ type: 'error', message: 'Invalid message format' });
         }
       });
@@ -146,7 +175,9 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
       socket.on('close', (code: number, reason: Buffer) => {
         try {
           const reasonStr = reason ? reason.toString() : '<no-reason>';
-          console.log(`WebSocket /models/ws/conversion closed - code=${code} reason=${reasonStr}`);
+          console.log(
+            `WebSocket /models/ws/conversion closed - code=${code} reason=${reasonStr}`,
+          );
         } catch (err) {
           console.log('WebSocket closed - unable to stringify reason', err);
         }
@@ -167,13 +198,20 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
         safeSend(ack);
         console.log('connection_ack send attempted');
       } catch (err) {
-        console.error('Failed to send connection_ack to websocket client:', err);
+        console.error(
+          'Failed to send connection_ack to websocket client:',
+          err,
+        );
       }
 
       // Auto-subscribe to job if jobId provided
       if (jobId) {
         wsManager.subscribeToJob(jobId, socket);
-        safeSend({ type: 'auto-subscribed', jobId, message: 'Automatically subscribed to job updates' });
+        safeSend({
+          type: 'auto-subscribed',
+          jobId,
+          message: 'Automatically subscribed to job updates',
+        });
       }
 
       // Register client for plugin status updates (after initial setup)
@@ -253,9 +291,13 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
           });
         }
       } catch (error) {
-        app.log.error('Error when processing model generation:', error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        app.log.error(
+          `Error when processing model generation: ${errorMessage}`,
+        );
         return reply.status(400).send({
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
     },
@@ -269,7 +311,9 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
       tags: TAGS,
       body: z.object({
         filePath: z.string().min(1, 'File path is required'),
-        resultType: z.enum(['rvt', 'pln']).describe('Target format: rvt (Revit) or pln (Archicad)'),
+        resultType: z
+          .enum(['rvt', 'pln'])
+          .describe('Target format: rvt (Revit) or pln (Archicad)'),
       }),
       response: {
         200: z.object({
@@ -296,7 +340,12 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
         if (filePath.startsWith('/download/conversion/')) {
           // Remove the /download/conversion/ prefix and construct the actual path
           const relativePath = filePath.replace('/download/conversion/', '');
-          actualFilePath = path.join(process.cwd(), 'public', 'conversion', relativePath);
+          actualFilePath = path.join(
+            process.cwd(),
+            'public',
+            'conversion',
+            relativePath,
+          );
         }
 
         // Validate file path exists and is an IFC file
@@ -311,22 +360,27 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
         const ext = extname(actualFilePath).toLowerCase();
         if (ext !== '.ifc') {
           return reply.status(400).send({
-            error: 'Only IFC files can be converted. File must have .ifc extension',
+            error:
+              'Only IFC files can be converted. File must have .ifc extension',
           });
         }
 
         // Generate job ID
-        const jobId = wsManager.createJobWithoutSocket(basename(actualFilePath));
+        const jobId = wsManager.createJobWithoutSocket(
+          basename(actualFilePath),
+        );
 
         // Route to appropriate conversion service based on target format
         if (resultType === 'rvt') {
           // Send to Revit plugin via Python (IFC to RVT)
-          sendFileToRevitPythonServiceWS(actualFilePath, basename(actualFilePath), jobId).catch(
-            (error) => {
-              console.error(`Revit conversion failed for job ${jobId}:`, error);
-              wsManager.handleJobError(jobId, (error as Error).message);
-            },
-          );
+          sendFileToRevitPythonServiceWS(
+            actualFilePath,
+            basename(actualFilePath),
+            jobId,
+          ).catch((error) => {
+            console.error(`Revit conversion failed for job ${jobId}:`, error);
+            wsManager.handleJobError(jobId, (error as Error).message);
+          });
 
           return reply.status(200).send({
             message: 'IFC to RVT conversion started',
@@ -335,12 +389,17 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
           });
         } else if (resultType === 'pln') {
           // Send to Archicad plugin via Python (IFC to PLN)
-          sendIfcToArchicadPythonServiceWS(actualFilePath, basename(actualFilePath), jobId).catch(
-            (error) => {
-              console.error(`Archicad conversion failed for job ${jobId}:`, error);
-              wsManager.handleJobError(jobId, (error as Error).message);
-            },
-          );
+          sendIfcToArchicadPythonServiceWS(
+            actualFilePath,
+            basename(actualFilePath),
+            jobId,
+          ).catch((error) => {
+            console.error(
+              `Archicad conversion failed for job ${jobId}:`,
+              error,
+            );
+            wsManager.handleJobError(jobId, (error as Error).message);
+          });
 
           return reply.status(200).send({
             message: 'IFC to PLN conversion started',
@@ -355,7 +414,8 @@ export async function modelRoutes(instance: FastifyInstance): Promise<void> {
       } catch (error) {
         console.error('Error in convert endpoint:', error);
         return reply.status(500).send({
-          error: error instanceof Error ? error.message : 'Internal server error',
+          error:
+            error instanceof Error ? error.message : 'Internal server error',
         });
       }
     },

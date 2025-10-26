@@ -22,6 +22,6 @@
  * @param {string} ifcString The IFC string to validate.
  * @returns {boolean} Returns true if the IFC string is valid, false otherwise.
  */
-export function validateIfc(ifcString: string): boolean {
+export function validateIfc(_ifcString: string): boolean {
   return false;
 }
