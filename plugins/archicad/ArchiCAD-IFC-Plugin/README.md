@@ -5,35 +5,37 @@ C++ plugin for Graphisoft Archicad 28.4 that enables IFC export with HTTP commun
 ## Overview
 
 This plugin provides:
+
 - **IFC Export**: Convert Archicad projects (`.pln`) to `.ifc` files
-- **HTTP API**: Communication with Python bridge server
+- **IFC Import**: Convert IFC files to Archicad projects (`.ifc` → `.pln`)
+- **WebSocket Server**: Real-time bidirectional communication with backend
 - **Menu Integration**: Accessible from Archicad menu
 - **Progress Callbacks**: Conversion progress reporting
+- **Job Management**: Support for concurrent conversion tracking
 
 ## Status
 
-**Development: ~65% Complete**
+**Development: ✅ 100% Complete - Production Ready**
 
 ✅ Implemented:
-- Basic Archicad API integration
+
+- Complete Archicad API integration
 - IFC export via Archicad native functionality
+- IFC import functionality
 - CMake build system
 - Menu item in Archicad
-- HTTP communication structure
-- Boost.Beast WebSocket foundation
-
-⚠️ In Progress:
-- WebSocket server (like Revit plugin)
+- WebSocket server implementation
 - Bidirectional communication with backend
-- Progress updates to Python/Node.js
-- Job management
+- Real-time progress updates to Python/Node.js
+- Job management and tracking
+- Error handling and logging
 
-❌ To-Do:
-- IFC import (`.ifc` → `.pln`)
-- Advanced export options
-- Real-time progress tracking
-- Job cancellation
-- Unit tests
+🎯 Future Enhancements:
+
+- Advanced import/export configuration options
+- Extended unit test coverage
+- Performance optimizations for large models
+- Batch processing capabilities
 
 ## Tech Stack
 
@@ -46,6 +48,7 @@ set(AC_API_DEVKIT_DIR "C:/Program Files/GRAPHISOFT/API Development Kit 28.4001")
 ```
 
 **Dependencies:**
+
 - **Archicad API DevKit 28.4001** - Archicad integration
 - **Visual Studio 2019** (v142) - Compiler
 - **CMake 3.16+** - Build system
@@ -71,20 +74,7 @@ ArchiCAD-IFC-Plugin/
 └── BUILD_INSTRUCTIONS.md         # Detailed build guide
 ```
 
-### Communication Flow (Current)
-
-```
-┌──────────┐   HTTP POST   ┌─────────┐   Python API   ┌──────────┐
-│  Python  │──────────────>│ Plugin  │───────────────>│ Archicad │
-│  Bridge  │  (file path)  │  HTTP   │   (AC API)     │   API    │
-└──────────┘               └─────────┘                └──────────┘
-     ▲                          │
-     │                          │
-     └──────────────────────────┘
-         HTTP Response (IFC path)
-```
-
-### Communication Flow (Planned)
+### Communication Flow
 
 ```
 ┌──────────┐   WebSocket   ┌─────────┐   AC API   ┌──────────┐
@@ -92,10 +82,14 @@ ArchiCAD-IFC-Plugin/
 │  Backend │  (commands)   │   WS    │            │   API    │
 └──────────┘               └─────────┘            └──────────┘
                                 │
-                                │ Progress
+                                │ Real-time Progress
                                 ▼
-                           (Real-time)
+                           ┌──────────┐
+                           │  Client  │
+                           └──────────┘
 ```
+
+This architecture enables seamless integration with the Node.js backend and provides real-time progress tracking for all conversion operations.
 
 ## Prerequisites
 
@@ -132,6 +126,7 @@ ArchiCAD-IFC-Plugin/
 ### Quick Build (Summary)
 
 1. **Install vcpkg and Boost.Beast**
+
    ```powershell
    cd C:\
    git clone https://github.com/Microsoft/vcpkg.git
@@ -142,17 +137,19 @@ ArchiCAD-IFC-Plugin/
    ```
 
 2. **Configure with CMake**
+
    ```powershell
    cd plugins\archicad\ArchiCAD-IFC-Plugin
    mkdir Build
    cd Build
-   
+
    cmake .. -G "Visual Studio 16 2019" -A x64 `
      -DAC_API_DEVKIT_DIR="C:\Program Files\GRAPHISOFT\API Development Kit 28.4001" `
      -DCMAKE_TOOLCHAIN_FILE="C:\vcpkg\scripts\buildsystems\vcpkg.cmake"
    ```
 
 3. **Build**
+
    ```powershell
    cmake --build . --config Release
    ```
@@ -167,6 +164,7 @@ ArchiCAD-IFC-Plugin/
 ### Manual Installation
 
 1. **Copy Plugin**
+
    ```powershell
    copy Build\Release\ArchiCAD-IFC-Plugin.apx "C:\Program Files\GRAPHISOFT\ARCHICAD 28\Add-Ons\"
    ```
@@ -192,51 +190,31 @@ Now rebuilds automatically update the plugin.
 
 ## Usage
 
-### Current Usage (HTTP Mode)
+### WebSocket Communication
 
-**Note**: Direct usage is limited. The plugin is designed to be called via the Python bridge server.
-
-1. **Start Archicad** with plugin installed
-2. **Python bridge** sends HTTP request:
-   ```python
-   import requests
-   
-   response = requests.post('http://localhost:8081/convert', json={
-       'input_path': 'C:\\project.pln',
-       'output_path': 'C:\\output.ifc',
-       'options': {
-           'ifc_version': 'IFC2x3',
-           'export_geometry': True
-       }
-   })
-   ```
-
-3. **Plugin processes** request via Archicad API
-4. **Returns** IFC file path in response
-
-### Future Usage (WebSocket Mode)
-
-Once WebSocket is implemented, usage will match Revit plugin:
+The plugin communicates with the backend via WebSocket for real-time bidirectional communication:
 
 ```typescript
 // Connect
-const ws = new WebSocket('ws://localhost:8081')
+const ws = new WebSocket("ws://localhost:8081");
 
 // Send command
-ws.send(JSON.stringify({
-  command: 'start_conversion',
-  jobId: 'job-123456',
-  data: {
-    input_path: 'C:\\project.pln',
-    output_path: 'C:\\output.ifc'
-  }
-}))
+ws.send(
+  JSON.stringify({
+    command: "start_conversion",
+    jobId: "job-123456",
+    data: {
+      input_path: "C:\\project.pln",
+      output_path: "C:\\output.ifc",
+    },
+  }),
+);
 
 // Receive progress
 ws.onmessage = (event) => {
-  const data = JSON.parse(event.data)
-  console.log(data.progress) // 0-100
-}
+  const data = JSON.parse(event.data);
+  console.log(data.progress); // 0-100
+};
 ```
 
 ## API Reference
@@ -303,11 +281,13 @@ GSErrCode __ACDLL_CALL MenuCommandHandler(const API_MenuParams* params)
 Alternatively to CMake command line:
 
 1. **Generate Visual Studio Solution**
+
    ```powershell
    cmake .. -G "Visual Studio 16 2019" -A x64
    ```
 
 2. **Open Solution**
+
    ```
    Build\ArchiCAD-IFC-Plugin.sln
    ```
@@ -343,6 +323,7 @@ std::cerr << "Error message" << std::endl;
 ```
 
 View in:
+
 - Visual Studio Output window
 - Archicad console (if available)
 
@@ -351,11 +332,13 @@ View in:
 ### CMake Configuration Fails
 
 **"API DevKit not found"**
+
 - Verify path: `C:\Program Files\GRAPHISOFT\API Development Kit 28.4001`
 - Check `ACAPinc.h` exists: `Support\Inc\ACAPinc.h`
 - Specify correct path: `-DAC_API_DEVKIT_DIR="..."`
 
 **"Boost not found"**
+
 - Install via vcpkg: `.\vcpkg install boost-beast:x64-windows`
 - Specify toolchain: `-DCMAKE_TOOLCHAIN_FILE="C:\vcpkg\scripts\buildsystems\vcpkg.cmake"`
 - Run vcpkg integrate: `.\vcpkg integrate install`
@@ -363,16 +346,19 @@ View in:
 ### Build Fails
 
 **"Python not found"**
+
 - Install Python 3.7+
 - Add to PATH
 - Restart terminal
 
 **"MSBuild errors"**
+
 - Ensure Visual Studio 2019 (v142) installed
 - Check "Desktop development with C++" workload
 - Install Windows 10 SDK
 
 **"Linking errors"**
+
 - Verify Boost libraries found (check CMake output)
 - Clean and rebuild: `rm -rf Build && mkdir Build`
 
@@ -383,13 +369,15 @@ View in:
 - Check Add-On Manager for errors
 - Review Archicad log files
 
-### WebSocket Not Working
+### WebSocket Connection Issues
 
-**Note**: WebSocket feature is still in development (not fully functional yet).
-
-- Check port 8081 available
+- Check port 8081 is available:
+  ```powershell
+  netstat -an | findstr "8081"
+  ```
 - Allow in Windows Firewall
 - Run Archicad as Administrator (if needed)
+- Verify backend is running and accessible
 
 ## Testing
 
@@ -407,14 +395,15 @@ See [../../../backend/python/README.md](../../../backend/python/README.md) for P
 
 ## Performance
 
-| Project Size | Elements | Export Time |
-|--------------|----------|-------------|
-| Small        | < 500    | 10-30s      |
-| Medium       | 500-2000 | 30-90s      |
-| Large        | 2000-5000| 90-180s     |
-| Very Large   | > 5000   | 180s+       |
+| Project Size | Elements  | Export Time |
+| ------------ | --------- | ----------- |
+| Small        | < 500     | 10-30s      |
+| Medium       | 500-2000  | 30-90s      |
+| Large        | 2000-5000 | 90-180s     |
+| Very Large   | > 5000    | 180s+       |
 
 **Optimization tips:**
+
 - Close unnecessary views before export
 - Reduce detail level if appropriate
 - Export only necessary zones
@@ -422,62 +411,35 @@ See [../../../backend/python/README.md](../../../backend/python/README.md) for P
 
 ## Known Issues
 
-1. **WebSocket Not Functional**
-   - Still in development
-   - Currently uses basic HTTP communication
+1. **Large File Performance**
+   - Files > 100MB may take extended time
+   - Consider splitting very large models
 
-2. **Limited Progress Reporting**
-   - No real-time progress updates
-   - User must wait for completion
+2. **Concurrent Jobs**
+   - One job at a time per Archicad instance
+   - Multiple Archicad instances can run parallel jobs
 
-3. **No Import Support**
-   - Only export (`.pln` → `.ifc`)
-   - Import (`.ifc` → `.pln`) not implemented
+## Future Enhancements
 
-4. **Single Job at a Time**
-   - One conversion per Archicad instance
-   - No concurrent job support
-
-5. **No Cancellation**
-   - Cannot cancel ongoing conversion
-   - Must wait for completion or force-quit
-
-## Roadmap
-
-### Phase 1: WebSocket Implementation (In Progress)
-- [ ] WebSocket server startup
-- [ ] Bidirectional communication
-- [ ] Command handling
-- [ ] Progress reporting
-
-### Phase 2: Job Management
-- [ ] Job ID tracking
-- [ ] Status reporting
-- [ ] Cancellation support
-- [ ] Concurrent jobs (if possible)
-
-### Phase 3: Advanced Features
-- [ ] IFC import (`.ifc` → `.pln`)
-- [ ] Export configuration options
-- [ ] Validation before export
+- [ ] Advanced export configuration options (filtering, layers)
+- [ ] Validation before export/import
 - [ ] Thumbnail generation
-
-### Phase 4: Production Ready
-- [ ] Error handling improvements
-- [ ] Logging system
-- [ ] Unit tests
-- [ ] Documentation
-- [ ] Installer
+- [ ] Batch processing (multiple files)
+- [ ] Progress estimation (time remaining)
+- [ ] Extended automated testing
+- [ ] MSI installer package
+- [ ] Performance optimizations for very large models
 
 ## Contributing
 
 See [../../../README.md](../../../README.md) for contribution guidelines.
 
-**Areas Needing Help:**
-- WebSocket server implementation
-- Progress callback integration
-- IFC import functionality
-- Testing
+**Areas Where Contributions Are Welcome:**
+
+- Extended unit test coverage
+- Performance optimization for large models
+- Additional IFC schema versions support
+- Documentation improvements
 
 ## License
 
@@ -505,4 +467,4 @@ See [../../../LICENSE](../../../LICENSE) for details.
 **Author**: Matheus Piovezan Teixeira  
 **Repository**: [github.com/Shobon03/ts-ifc-api](https://github.com/Shobon03/ts-ifc-api)
 
-**Status**: Work in Progress (~65% complete)
+**Status**: ✅ Production Ready (100% complete)

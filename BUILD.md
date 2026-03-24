@@ -5,13 +5,16 @@ This guide describes how to build and run **ts-ifc-api** in production.
 ## 📋 Prerequisites
 
 ### Required Software
-- **Node.js** >= 22.0.0 (LTS)
+
+- **Node.js** >= 18.0.0 (LTS recommended: 20.x)
 - **pnpm** >= 8.0.0
-- **Python** >= 3.13
+- **Python** >= 3.8 (3.13+ recommended)
 - **Git**
 
 ### Desktop Plugins (Optional)
+
 For complete conversion functionality:
+
 - **Revit Plugin** - For Revit ↔ IFC conversions
 - **Archicad Plugin** - For Archicad ↔ IFC conversions
 
@@ -96,11 +99,13 @@ JOB_CLEANUP_INTERVAL_SECONDS=60
 ### Option 1: Using Scripts (Recommended)
 
 **Windows:**
+
 ```bash
 scripts\build.bat
 ```
 
 **Linux/Mac:**
+
 ```bash
 ./scripts/build.sh
 ```
@@ -114,7 +119,7 @@ pnpm build
 # Individual builds
 pnpm build:backend      # Node.js backend
 pnpm build:frontend     # React frontend
-pnpm build:documentation # VitePress docs
+pnpm build:documentation # Fumadocs documentation
 ```
 
 ### What the Build Does
@@ -129,8 +134,8 @@ pnpm build:documentation # VitePress docs
    - Output: `frontend/dist/`
 
 3. **Documentation** (`documentation`)
-   - Compiles VitePress
-   - Output: `documentation/.vitepress/dist/`
+   - Compiles Fumadocs (Next.js)
+   - Output: `documentation/.next/`
 
 4. **Python Backend** (`backend/python`)
    - ⚠️ Python doesn't require build (interpreted)
@@ -143,21 +148,25 @@ pnpm build:documentation # VitePress docs
 ### Option 1: All Services (Recommended)
 
 **Windows:**
+
 ```bash
 scripts\start.bat
 ```
 
 **Linux/Mac:**
+
 ```bash
 ./scripts/start.sh
 ```
 
 **OR via pnpm:**
+
 ```bash
 pnpm start
 ```
 
 This starts:
+
 - **Node.js Backend**: http://localhost:3000
 - **Python Backend**: http://localhost:5000
 - **Frontend**: Served by Node.js at http://localhost:3000
@@ -165,6 +174,7 @@ This starts:
 ### Option 2: Individual Services
 
 **Node.js Backend:**
+
 ```bash
 # Windows
 scripts\start-backend.bat
@@ -177,6 +187,7 @@ pnpm start:backend
 ```
 
 **Python Backend:**
+
 ```bash
 # Windows
 scripts\start-python.bat
@@ -203,7 +214,7 @@ pnpm dev
 pnpm dev:backend        # Node.js (port 3000)
 pnpm dev:python         # Python (port 5000)
 pnpm dev:frontend       # Vite dev server (port 3001)
-pnpm dev:documentation  # VitePress (port 5173)
+pnpm dev:documentation  # Fumadocs (port 3002)
 ```
 
 ---
@@ -221,7 +232,7 @@ ts-ifc-api/
 ├── frontend/
 │   └── dist/                  # ✅ Optimized React build
 ├── documentation/
-│   └── .vitepress/dist/       # ✅ Static documentation
+│   └── .next/                 # ✅ Static documentation (Next.js)
 ├── scripts/                   # ✅ Automation scripts
 └── storage/                   # Conversion files (created at runtime)
 ```
@@ -233,16 +244,19 @@ ts-ifc-api/
 ### Health Checks
 
 **Node.js Backend:**
+
 ```bash
 curl http://localhost:3000/health
 ```
 
 **Python Backend:**
+
 ```bash
 curl http://localhost:5000/health
 ```
 
 **Expected response:**
+
 ```json
 {
   "status": "ok",
@@ -261,12 +275,14 @@ curl http://localhost:5000/health
 ## 🐛 Troubleshooting
 
 ### Error: "Backend not built"
+
 ```bash
 # Run the build again
 pnpm build
 ```
 
 ### Error: "Virtual environment not found"
+
 ```bash
 # Windows
 cd backend\python
@@ -282,6 +298,7 @@ pip install -r requirements.txt
 ```
 
 ### Error: "Port already in use"
+
 ```bash
 # Windows
 netstat -ano | findstr :3000
@@ -292,6 +309,7 @@ lsof -ti:3000 | xargs kill -9
 ```
 
 ### Plugins won't connect
+
 1. Check if Revit/Archicad are open
 2. Verify plugins are installed and enabled
 3. Check Python logs for connection messages
@@ -314,32 +332,33 @@ pnpm build
 ```
 
 **ecosystem.config.js:**
+
 ```javascript
 module.exports = {
   apps: [
     {
-      name: 'ts-ifc-api-node',
-      script: 'backend/node/dist/server.js',
-      cwd: './backend/node',
+      name: "ts-ifc-api-node",
+      script: "backend/node/dist/server.js",
+      cwd: "./backend/node",
       instances: 1,
-      exec_mode: 'cluster',
+      exec_mode: "cluster",
       env: {
-        NODE_ENV: 'production',
-        PORT: 3000
-      }
+        NODE_ENV: "production",
+        PORT: 3000,
+      },
     },
     {
-      name: 'ts-ifc-api-python',
-      script: 'venv/Scripts/python',
-      args: 'src/server.py',
-      cwd: './backend/python',
-      interpreter: 'none',
+      name: "ts-ifc-api-python",
+      script: "venv/Scripts/python",
+      args: "src/server.py",
+      cwd: "./backend/python",
+      interpreter: "none",
       env: {
-        FLASK_ENV: 'production',
-        FLASK_PORT: 5000
-      }
-    }
-  ]
+        FLASK_ENV: "production",
+        FLASK_PORT: 5000,
+      },
+    },
+  ],
 };
 ```
 

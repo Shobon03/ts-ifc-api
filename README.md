@@ -17,13 +17,54 @@
 ## 🎯 Goals
 
 This project provides a complete **BIM interoperability layer** for architectural software, enabling seamless conversion between:
+
 - **Revit** (.rvt) ↔ IFC
+  - RVT → IFC: Cloud-based via **Autodesk Platform Services (APS/Forge)**
+  - IFC → RVT: Local via **Revit Plugin**
 - **Archicad** (.pln) ↔ IFC
-- **Revit** ↔ **Archicad** (via IFC)
+  - Both directions via **Archicad Plugin** (local)
+- **Revit** ↔ **Archicad** (via IFC as intermediate format)
+
+### System Architecture Overview
+
+```mermaid
+graph TB
+    subgraph Client["🌐 Client Browser"]
+        Frontend["React Frontend<br/>Port 3001"]
+    end
+
+    subgraph Backend["🖥️ Backend Services"]
+        NodeAPI["Node.js API<br/>Port 3000<br/>• REST API<br/>• WebSocket Manager"]
+        PythonBridge["Python Bridge<br/>Port 5000<br/>• Plugin Communication"]
+    end
+
+    subgraph Cloud["☁️ Cloud Services"]
+        APS["Autodesk APS/Forge<br/>• RVT → IFC Conversion"]
+    end
+
+    subgraph Plugins["🔌 Desktop Plugins"]
+        RevitPlugin["Revit Plugin<br/>Port 8082<br/>• IFC → RVT"]
+        ArchicadPlugin["Archicad Plugin<br/>Port 8081<br/>• PLN ↔ IFC"]
+    end
+
+    Frontend <-->|"HTTP/WebSocket"| NodeAPI
+    NodeAPI <-->|"Cloud API"| APS
+    NodeAPI <-->|"WebSocket Bridge"| PythonBridge
+    PythonBridge <-->|"WebSocket"| RevitPlugin
+    PythonBridge <-->|"WebSocket"| ArchicadPlugin
+
+    style APS fill:#e1f5ff
+    style RevitPlugin fill:#fff9c4
+    style ArchicadPlugin fill:#c8e6c9
+    style NodeAPI fill:#f3e5f5
+    style PythonBridge fill:#f3e5f5
+```
 
 ### Key Components
+
 - **REST API** (Node.js + TypeScript + Fastify)
-- **Python Bridge** (Flask + Archicad API)
+- **Autodesk Platform Services** (Cloud conversion for RVT → IFC)
+- **Python Bridge** (Flask + Plugin communication)
 - **Desktop Plugins** (Revit C# + Archicad C++)
 - **Web Interface** (React + TanStack Router)
 - **Documentation** (Fumadocs + Code Hike)
@@ -50,13 +91,15 @@ This project provides a complete **BIM interoperability layer** for architectura
 ## 🚀 Quick Start
 
 ### Prerequisites
-- **Node.js** >= 22.0.0 (LTS)
+
+- **Node.js** >= 18.0.0 (LTS recommended: 20.x)
 - **pnpm** >= 8.0.0
-- **Python** >= 3.13
+- **Python** >= 3.8 (3.13+ recommended)
 
 ### Installation
 
 **Windows:**
+
 ```bash
 git clone https://github.com/Shobon03/ts-ifc-api.git
 cd ts-ifc-api
@@ -64,6 +107,7 @@ scripts\setup.bat
 ```
 
 **Linux/Mac:**
+
 ```bash
 git clone https://github.com/Shobon03/ts-ifc-api.git
 cd ts-ifc-api
@@ -72,6 +116,7 @@ chmod +x scripts/*.sh
 ```
 
 **Or manually:**
+
 ```bash
 pnpm install
 cd backend/python
@@ -96,18 +141,18 @@ Or start services individually:
 pnpm dev:backend        # Node.js API (port 3000)
 pnpm dev:python         # Python bridge (port 5000)
 pnpm dev:frontend       # React app (port 3001)
-pnpm dev:documentation  # VitePress docs (port 5173)
+pnpm dev:documentation  # Fumadocs docs (port 3002)
 ```
 
 ### Ports After Initialization
 
-| Service | URL | Description |
-|---------|-----|-------------|
-| **Backend API** | http://localhost:3000 | Node.js REST API + WebSocket |
-| **Python Bridge** | http://localhost:5000 | Archicad plugin communication |
-| **Frontend** | http://localhost:3001 | React web interface |
-| **Documentation** | http://localhost:3002 | Fumadocs documentation site |
-| **API Reference** | http://localhost:3000/docs | Scalar API documentation |
+| Service           | URL                        | Description                   |
+| ----------------- | -------------------------- | ----------------------------- |
+| **Backend API**   | http://localhost:3000      | Node.js REST API + WebSocket  |
+| **Python Bridge** | http://localhost:5000      | Archicad plugin communication |
+| **Frontend**      | http://localhost:3001      | React web interface           |
+| **Documentation** | http://localhost:3002      | Fumadocs documentation site   |
+| **API Reference** | http://localhost:3000/docs | Scalar API documentation      |
 
 ---
 
@@ -116,16 +161,19 @@ pnpm dev:documentation  # VitePress docs (port 5173)
 ### Build
 
 **Windows:**
+
 ```bash
 scripts\build.bat
 ```
 
 **Linux/Mac:**
+
 ```bash
 ./scripts/build.sh
 ```
 
 **Or with pnpm:**
+
 ```bash
 pnpm build
 ```
@@ -133,16 +181,19 @@ pnpm build
 ### Run
 
 **Windows:**
+
 ```bash
 scripts\start.bat
 ```
 
 **Linux/Mac:**
+
 ```bash
 ./scripts/start.sh
 ```
 
 **Or with pnpm:**
+
 ```bash
 pnpm start
 ```
@@ -173,12 +224,14 @@ For detailed build and deployment instructions, see **[BUILD.md](BUILD.md)**.
 Complete documentation is available at **http://localhost:3002** (when running `pnpm dev:documentation`).
 
 ### User Guide
+
 - **Introduction**: What is the system and how it works
 - **Getting Started**: Your first conversion
 - **File Conversion**: Detailed guide for all conversion types
 - **Troubleshooting**: Common issues and solutions
 
 ### Developer Guide
+
 - **Architecture**: System overview and component interaction
 - **Setup**: Environment configuration
 - **Backend Node.js**: Fastify API and WebSocket
@@ -186,20 +239,25 @@ Complete documentation is available at **http://localhost:3002** (when running `
 - **Frontend**: React application with TanStack Router
 
 ### Plugin Development
-- **Revit Plugin**: C# WebSocket plugin (~95% complete)
-- **Archicad Plugin**: C++ plugin with HTTP communication (~65% complete)
+
+- **Revit Plugin**: C# WebSocket plugin for **IFC → RVT import** (RVT → IFC handled by APS)
+- **Archicad Plugin**: C++ plugin for **bidirectional PLN ↔ IFC conversion**
 
 ### API Reference
+
 - **Endpoints**: Complete REST API documentation
 - **WebSocket Protocol**: Real-time communication spec
 - **Data Models**: TypeScript types and Zod schemas
 
 ### Quick Links
+
 - [Frontend README](frontend/README.md)
 - [Backend Node.js README](backend/node/README.md)
 - [Backend Python README](backend/python/README.md)
 - [Revit Plugin README](plugins/revit/IfcToRevitConverter/README.md)
 - [Archicad Plugin README](plugins/archicad/ArchiCAD-IFC-Plugin/README.md)
+- [Architecture Overview](ARCHITECTURE.md)
+- [Architectural Decisions](ARCHITECTURAL_DECISIONS.md)
 - [Build Instructions](BUILD.md)
 - [Deploy Checklist](DEPLOY_CHECKLIST.md)
 
@@ -214,8 +272,10 @@ ts-ifc-api/
 │   │   ├── src/
 │   │   │   ├── routes/      # API endpoints
 │   │   │   ├── services/    # Business logic
-│   │   │   ├── schemas/     # Zod validation
-│   │   │   └── types/       # TypeScript types
+│   │   │   ├── ws/          # WebSocket handlers
+│   │   │   ├── types/       # TypeScript types
+│   │   │   ├── utils/       # Utilities
+│   │   │   └── tests/       # Unit tests
 │   │   └── README.md
 │   └── python/              # Flask + Archicad API bridge
 │       ├── src/
@@ -237,7 +297,7 @@ ts-ifc-api/
 │       └── ArchiCAD-IFC-Plugin/
 │           ├── BUILD_INSTRUCTIONS.md
 │           └── README.md
-├── documentation/          # Fumadocs documentation site
+├── documentation/          # Fumadocs documentation site (Next.js 15)
 │   ├── content/docs/
 │   │   ├── user-guide/
 │   │   ├── developer-guide/
@@ -258,14 +318,16 @@ ts-ifc-api/
 ## 🔧 Technology Stack
 
 ### Backend
-- **Node.js** 18+ with TypeScript
+
+- **Node.js** 18+ with TypeScript (20.x LTS recommended)
 - **Fastify** 5.6 - Fast web framework
 - **Zod** 4.1 - Schema validation
 - **@fastify/websocket** - WebSocket support
 - **Axios** - HTTP client
-- **APS SDK** - Autodesk Platform Services
+- **APS SDK** - Autodesk Platform Services (for RVT → IFC cloud conversion)
 
 ### Frontend
+
 - **React** 19.2 - UI library
 - **TanStack Router** 1.133 - File-based routing
 - **TanStack Query** 5.90 - Server state management
@@ -275,16 +337,19 @@ ts-ifc-api/
 - **Lucide React** - Icons
 
 ### Python Bridge
+
 - **Flask** 3.1 - Web framework
 - **Archicad** 28.3000 - Archicad API
 
 ### Plugins
+
 - **Revit API 2025.4** + **.NET 8.0** (C#)
 - **Archicad API DevKit 28.4** + **C++17**
 - **Boost.Beast** - WebSocket/HTTP (Archicad)
 - **WebSocketSharp** - WebSocket server (Revit)
 
 ### Documentation
+
 - **Fumadocs** - Documentation framework (Next.js 15)
 - **Code Hike** - Code highlighting and annotations
 - **MDX** - Markdown with React components
@@ -293,19 +358,108 @@ ts-ifc-api/
 
 ## 🚦 System Status
 
-| Component | Status | Completeness |
-|-----------|--------|--------------|
-| Backend Node.js | ✅ Production Ready | 100% |
-| Backend Python | ⚠️ Basic | 70% |
-| Frontend | ✅ Production Ready | 100% |
-| Revit Plugin | ✅ Nearly Complete | 95% |
-| Archicad Plugin | ⚠️ In Development | 65% |
-| Documentation | ✅ Complete | 100% |
+| Component       | Status              | Completeness |
+| --------------- | ------------------- | ------------ |
+| Backend Node.js | ✅ Production Ready | 100%         |
+| Backend Python  | ✅ Production Ready | 100%         |
+| Frontend        | ✅ Production Ready | 100%         |
+| Revit Plugin    | ✅ Production Ready | 100%         |
+| Archicad Plugin | ✅ Production Ready | 100%         |
+| Documentation   | ✅ Complete         | 100%         |
 
-### Known Limitations
-- **Archicad Plugin**: WebSocket not yet implemented (uses HTTP)
-- **IFC Validation**: Frontend UI exists but backend not implemented
-- **Revit Plugin**: Export functionality not yet implemented (import only)
+### Conversion Methods
+
+| Conversion | Method   | Technology                             |
+| ---------- | -------- | -------------------------------------- |
+| RVT → IFC  | ☁️ Cloud | Autodesk Platform Services (APS/Forge) |
+| IFC → RVT  | 🖥️ Local | Revit Plugin + Python Bridge           |
+| PLN → IFC  | 🖥️ Local | Archicad Plugin + Python Bridge        |
+| IFC → PLN  | 🖥️ Local | Archicad Plugin + Python Bridge        |
+
+### Conversion Flow Diagrams
+
+#### RVT → IFC (Cloud-based via APS)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Node.js
+    participant APS as Autodesk APS
+
+    User->>Frontend: Upload RVT file
+    Frontend->>Node.js: POST /models/generate-ifc
+    Node.js->>APS: Upload to OSS bucket
+    Node.js->>APS: Start conversion job
+
+    loop Poll status every 5s
+        Node.js->>APS: Check manifest
+        APS-->>Node.js: Progress: 0-100%
+        Node.js-->>Frontend: WebSocket update
+    end
+
+    APS-->>Node.js: Conversion complete
+    Node.js->>APS: Download IFC
+    Node.js->>Node.js: Save to disk
+    Node.js-->>Frontend: Download URL
+    User->>Frontend: Download IFC
+```
+
+#### IFC → RVT (Local via Revit Plugin)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Node.js
+    participant Python
+    participant Revit as Revit Plugin
+
+    User->>Frontend: Submit IFC file
+    Frontend->>Node.js: POST /models/convert-from-ifc
+    Node.js->>Python: Trigger conversion
+    Python->>Revit: WebSocket command
+    Revit->>Revit: Import IFC → RVT
+    Revit-->>Python: Progress updates
+    Python-->>Node.js: Forward progress
+    Node.js-->>Frontend: WebSocket update
+    Revit-->>Python: Conversion complete
+    Python-->>Node.js: Forward completion
+    Node.js-->>Frontend: Download URL
+    User->>Frontend: Download RVT
+```
+
+#### PLN ↔ IFC (Local via Archicad Plugin)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Node.js
+    participant Python
+    participant Archicad as Archicad Plugin
+
+    User->>Frontend: Upload PLN/IFC file
+    Frontend->>Node.js: POST /models/...
+    Node.js->>Python: Trigger conversion
+    Python->>Archicad: WebSocket command
+    Archicad->>Archicad: Convert PLN ↔ IFC
+    Archicad-->>Python: Progress updates
+    Python-->>Node.js: Forward progress
+    Node.js-->>Frontend: WebSocket update
+    Archicad-->>Python: Conversion complete
+    Python-->>Node.js: Forward completion
+    Node.js-->>Frontend: Download URL
+    User->>Frontend: Download result
+```
+
+### Current Features
+
+- ✅ **Complete conversion pipeline**: All formats fully supported (RVT ↔ IFC ↔ PLN)
+- ✅ **Hybrid architecture**: Cloud (APS) for RVT→IFC, Local plugins for other conversions
+- ✅ **Real-time progress tracking**: WebSocket communication for all conversions
+- ✅ **Production ready**: All components tested and stable
+- ℹ️ **IFC Validation**: UI available, backend integration planned for future release
 
 ---
 
@@ -323,12 +477,13 @@ Contributions are welcome! Please follow these guidelines:
 
 See [BUILD.md](BUILD.md) for detailed development environment setup.
 
-### Areas Needing Help
-- Archicad Plugin WebSocket implementation
-- IFC validation backend
-- Revit Plugin export functionality
-- Unit and integration tests
+### Future Enhancements
+
+- IFC validation backend integration
+- Extended unit and integration test coverage
 - Docker containerization
+- Performance optimizations for large models
+- Additional IFC schema versions support
 
 ---
 
